@@ -15,9 +15,9 @@ const Login = () => {
         <div className="left-container">
 
             <div className="login-container">
-                <div>
+                <div className='login-info'>
                     <div className='login-text'>
-                    <Title level={4}>Войти</Title>
+                    <Title level={4} className='singin-button'>Войти</Title>
                     </div>
 
                     <div className="login-username">
@@ -43,7 +43,7 @@ const Login = () => {
                 <div className="button-text">
                     <Button type="primary" className='login-button'>Логин</Button>
 
-                    <Link href="" target="_blank">
+                    <Link href="" target="_blank" className='registration-button'>
                     Регистрация
                     </Link>
                 </div>
