@@ -31,11 +31,12 @@ html, body {
 }
 
 .login-container{
-    width: 300px;
+    width: 50%;
     justify-content: center;
     align-items: center;
-    
+    white-space: nowrap;
 }
+
 .login-info{
     
 }

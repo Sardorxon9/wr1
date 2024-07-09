@@ -25,7 +25,7 @@ const Login = () => {
                         <Text>Имя пользователя</Text>
                         </Space> 
                         <br />
-                        <Input placeholder="email" prefix={<UserOutlined />} />
+                        <Input placeholder="email" prefix={<UserOutlined/>} />
                         <br />
                     </div>
 
@@ -42,7 +42,7 @@ const Login = () => {
 
                 <div className="button-text">
                     <Button type="primary" className='login-button'>Логин</Button>
-
+                    <br />
                     <Link href="" target="_blank" className='registration-button'>
                     Регистрация
                     </Link>
