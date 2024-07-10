@@ -37,7 +37,8 @@ const LoginPage = () => {
           </div>
 
           <div className="button-text">
-            <Button type="primary" className='login-button'>Логин</Button><br />
+          <Link to="/mainpage"><Button type="primary" className='login-button'>Логин</Button><br /></Link>
+            
             <Link to="/register"><Text underline>Регистрация</Text></Link>
             <br />
           </div>
