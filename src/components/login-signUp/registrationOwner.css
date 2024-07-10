@@ -26,19 +26,41 @@ html, body {
     background-color: rgb(183, 218, 253);
 }
 
-.signup-container {
-    width: 50%;
+.content-container {
+    display: flex;
     justify-content: center;
     align-items: center;
+    width: 100%;
+    padding-top: 50px; /* Add top padding to move the content down */
+}
+
+.signup-container {
+    width: 50%;
     white-space: nowrap;
+    position: relative;
+}
+
+.header-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 30px; /* Adds white space between header and form */
+    position: relative;
+}
+
+.back-link {
+    color: gray; /* Set the color of the arrow icon to gray */
+    position: absolute;
+    left: 0;
+    top: 50%; /* Vertically center the back link */
+    transform: translateY(-50%); /* Adjust for proper vertical centering */
 }
 
 .signup-text {
-    text-align: center;
-    margin-bottom: 30px; /* Adds white space between header and form */
     font-family: 'Roboto', sans-serif; /* Customize the font family */
     font-weight: 700; /* Customize the font weight */
     font-size: 24px; /* Customize the font size */
+    margin: 0; /* Remove default margin */
 }
 
 .signup-button {
