@@ -1,51 +1,87 @@
 import React from 'react';
-import { Space, Typography, Input, Button } from 'antd';
-import { UserOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom'; // Import Link from react-router-dom
+import { Form, Input, Button, Typography } from 'antd';
 import './registrationOwner.css';
 
-const { Text } = Typography;
 const { Title } = Typography;
 
 const RegistrationOwner = () => {
+  const onFinish = (values) => {
+    console.log('Success:', values);
+  };
+
+  const onFinishFailed = (errorInfo) => {
+    console.log('Failed:', errorInfo);
+  };
+
   return (
-    <div className='main-container'>
+    <div className="main-container">
       <div className="left-container">
-        <form className="login-container" id='form1'>
-          <div className='login-info'>
-            <div className='login-text'>
-              <Title level={4} className='singin-button'>Регистрация</Title>
-            </div>
+        <div className="signup-container">
+          <Title className="signup-text" level={2}>Регистрация</Title>
+          <Form
+            name="signup"
+            initialValues={{ remember: true }}
+            onFinish={onFinish}
+            onFinishFailed={onFinishFailed}
+            layout="vertical"
+          >
+            <Form.Item
+              label="Имя"
+              name="firstName"
+              rules={[{ required: true, message: 'Пожалуйста, введите ваше имя!' }]}
+            >
+              <Input placeholder="Ваше имя" />
+            </Form.Item>
 
-            <div className="login-username">
-              <Space direction="vertical">
-                <Text>Имя пользователя</Text>
-              </Space> 
-              <br />
-              <Input placeholder="email" prefix={<UserOutlined />} />
-              <br />
-            </div>
+            <Form.Item
+              label="Фамилия"
+              name="lastName"
+              rules={[{ required: true, message: 'Пожалуйста, введите вашу фамилию!' }]}
+            >
+              <Input placeholder="Ваша фамилия" />
+            </Form.Item>
 
-            <div className="login-password">
-              <Space direction="vertical">
-                <Text>Пароль <span style={{color: 'red'}}>*</span> </Text>
-              </Space> 
-              <br />
-              <Input placeholder="password" prefix={<UserOutlined />} />
-              <br />
-            </div>
-          </div>
+            <Form.Item
+              label="Email"
+              name="email"
+              rules={[{ required: true, message: 'Пожалуйста, введите ваш email!' }]}
+            >
+              <Input type="email" placeholder="email" />
+            </Form.Item>
 
-          <div className="button-text">
-            <Link to="../success" className='registration-button'>
-              <Button type="primary" className='login-button'>Регистрация</Button>
-            </Link>
-          </div>
-        </form>
+            <Form.Item
+              label="Пароль"
+              name="password"
+              rules={[{ required: true, message: 'Пожалуйста, введите ваш пароль!' }]}
+            >
+              <Input.Password placeholder="Пароль" />
+            </Form.Item>
+
+            <Form.Item
+              label="Повторите пароль"
+              name="confirmPassword"
+              rules={[{ required: true, message: 'Пожалуйста, повторите ваш пароль!' }]}
+            >
+              <Input.Password placeholder="Повторите пароль" />
+            </Form.Item>
+
+            <Form.Item
+              label="Организация"
+              name="organization"
+              rules={[{ required: true, message: 'Пожалуйста, введите вашу организацию!' }]}
+            >
+              <Input placeholder="Организация" />
+            </Form.Item>
+
+            <Form.Item>
+              <Button type="primary" htmlType="submit" className="signup-button">
+                Регистрация
+              </Button>
+            </Form.Item>
+          </Form>
+        </div>
       </div>
-
-      <div className="right-container">
-      </div>
+      <div className="right-container"></div>
     </div>
   );
 };
