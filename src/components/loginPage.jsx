@@ -1,10 +1,10 @@
-// registerOwner.jsx
 import React from 'react';
 import { Space, Typography, Input, Button } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons'; // Added LockOutlined for password input
+import { Link } from 'react-router-dom'; // Import Link from react-router-dom
 import './loginPage.css';
 
-const { Text, Link } = Typography;
+const { Text } = Typography;
 const { Title } = Typography;
 
 const LoginPage = () => {
@@ -37,11 +37,11 @@ const LoginPage = () => {
           </div>
 
           <div className="button-text">
-            <Button type="primary" className='login-button'>Логин</Button>
+            <Button type="primary" className='login-button'>Логин</Button><br />
+            <Link to="/register"><Text underline>Регистрация</Text></Link>
             <br />
-  
           </div>
-          <Link to="register">Регистрация</Link>
+          
         </div>
       </div>
 
