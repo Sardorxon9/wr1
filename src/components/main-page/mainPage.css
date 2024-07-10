@@ -1,0 +1,63 @@
+/* Style for the main layout container */
+.site-layout {
+    background: #fff;
+  }
+  
+  /* Style for the header background */
+  .header {
+    background: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* Soft shadow for visual separation */
+  }
+  
+  /* Header content container */
+  .header-content {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    align-items: center;
+  }
+  
+  /* Left side of the header */
+  .header-left {
+    font-size: 20px;
+    font-weight: 500; /* Less bold font weight */
+  }
+  
+  /* User data container */
+  .userdata {
+    display: flex;
+    align-items: center;
+    margin-left: auto; /* Align user data to the right */
+    margin-right: 16px; /* Add margin to the right side */
+  }
+  
+  /* User info */
+  .user-info {
+    margin-left: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    line-height: 1; /* Override the default line-height */
+  }
+  
+  /* User name text */
+  .user-name {
+    line-height: 1.2; /* Set a specific line-height for the user name */
+  }
+  
+  /* User role text */
+  .user-role {
+    font-size: 14px;
+    color: #1890ff !important; /* Primary blue color with high specificity */
+    font-weight: lighter;
+    line-height: 1.2; /* Set a specific line-height for the user role */
+  }
+  
+  /* User avatar */
+  .user-avatar {
+    background: #d9d9d9; /* Gray circle */
+  }
+  
