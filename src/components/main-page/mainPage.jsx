@@ -1,33 +1,65 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Typography, Avatar, Space, Button } from 'antd';
-import { Link } from 'react-router-dom';
-import { DashboardOutlined, LogoutOutlined, UserOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
+import {
+  DashboardOutlined,
+  LogoutOutlined,
+  UserOutlined,
+  FormOutlined,
+  MenuUnfoldOutlined,
+} from '@ant-design/icons';
+import { Layout, Menu, Typography, Avatar, Space, Button, theme } from 'antd';
+import { Link, Outlet } from 'react-router-dom';
 import './mainPage.css';
 
-const { Header, Sider, Content, Footer } = Layout;
-const { Title, Text } = Typography;
+const { Header, Sider, Content } = Layout;
+const { Text } = Typography;
 
 const MainPage = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const {
+    token: { colorBgContainer, borderRadiusLG },
+  } = theme.useToken();
+
+  const menuItems = [
+    {
+      key: '1',
+      icon: <DashboardOutlined />,
+      label: <Link to="/mainpage/dashboard">Dashboard</Link>,
+    },
+    {
+      key: '2',
+      icon: <FormOutlined />,
+      label: <Link to="/mainpage/create-order">Добавить заказ</Link>,
+    },
+    {
+      key: '3',
+      icon: <LogoutOutlined />,
+      label: <Link to="/">Log Out</Link>,
+    },
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider trigger={null} collapsible collapsed={collapsed}>
-        <div className="logo" />
-        <Menu theme="dark" defaultSelectedKeys={['1']} mode="inline">
-          <Menu.Item key="1" icon={<DashboardOutlined />}>
-            <Link to="/dashboard">Dashboard</Link>
-          </Menu.Item>
-          <Menu.Item key="2" icon={<LogoutOutlined />}>
-            <Link to="/">Log Out</Link>
-          </Menu.Item>
-        </Menu>
+        <div className="whiteray-logo">Whiteray</div>
+        <Menu
+          theme="dark"
+          mode="inline"
+          defaultSelectedKeys={['1']}
+          items={menuItems}
+        />
       </Sider>
-      <Layout className="site-layout">
-        <Header className="header" style={{ padding: 0 }}>
+      <Layout>
+        <Header
+          style={{
+            padding: 0,
+            background: colorBgContainer,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
           <Button
             type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            icon={<MenuUnfoldOutlined />}
             onClick={() => setCollapsed(!collapsed)}
             style={{
               fontSize: '16px',
@@ -35,11 +67,10 @@ const MainPage = () => {
               height: 64,
             }}
           />
-          <div className="header-content">
-            <div className="header-left">Whiteray</div>
-            <div className="userdata">
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
+            <div className="userdata" style={{ display: 'flex', alignItems: 'center' }}>
               <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
-              <Space direction="vertical" size={0} className="user-info">
+              <Space direction="vertical" size={0} className="user-info" style={{ marginLeft: '10px' }}>
                 <Text className="user-name" strong>Бахтиер Орипов</Text>
                 <Text className="user-role">Администратор</Text>
               </Space>
@@ -50,14 +81,13 @@ const MainPage = () => {
           style={{
             margin: '24px 16px',
             padding: 24,
-            minHeight: 360,
-            background: '#fff',
-            borderRadius: '8px',
+            minHeight: '100%',
+            background: colorBgContainer,
+            borderRadius: borderRadiusLG,
           }}
         >
-          <Title level={2}>Welcome</Title>
+          <Outlet />
         </Content>
-        <Footer style={{ textAlign: 'center' }}>Ant Design Layout Example ©2024</Footer>
       </Layout>
     </Layout>
   );
