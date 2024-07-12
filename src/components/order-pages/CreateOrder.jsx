@@ -32,9 +32,7 @@ const CreateOrder = () => {
     <div className="create-order-container">
       {contextHolder}
       <div className="order-header">
-        <Link to="/mainpage/dashboard" className="back-link">
-          <ArrowLeftOutlined />
-        </Link>
+        
         <div className="header-content-page">
           <Title level={3}>Добавить новый заказ</Title>
           <Text>Заказ номер: 24A001</Text>

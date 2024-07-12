@@ -5,6 +5,7 @@ import {
   UserOutlined,
   FormOutlined,
   MenuUnfoldOutlined,
+  OrderedListOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Typography, Avatar, Space, Button, theme } from 'antd';
 import { Link, Outlet } from 'react-router-dom';
@@ -32,6 +33,11 @@ const MainPage = () => {
     },
     {
       key: '3',
+      icon: <OrderedListOutlined />,
+      label: <Link to="/mainpage/order-list">Заказы</Link>,
+    },
+    {
+      key: '4',
       icon: <LogoutOutlined />,
       label: <Link to="/">Log Out</Link>,
     },

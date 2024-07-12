@@ -1,0 +1,66 @@
+/* General layout */
+.order-list-container {
+    padding: 24px;
+    background: #fff;
+    border-radius: 8px;
+  }
+  
+  /* Header styles */
+  .whiteray-logo {
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    padding: 16px;
+    text-align: center;
+  }
+  
+  .userdata {
+    display: flex;
+    align-items: center;
+  }
+  
+  .user-info {
+    margin-left: 10px;
+  }
+  
+  .user-name {
+    font-weight: bold;
+  }
+  
+  .user-role {
+    font-size: 14px;
+    color: #1890ff;
+  }
+  
+  /* Table styles */
+  .ant-pro-table {
+    margin-top: 16px;
+  }
+  
+  .ant-table-thead > tr > th {
+    background-color: #fafafa;
+    font-weight: bold;
+  }
+  
+  .ant-table-tbody > tr > td {
+    background-color: #fff;
+  }
+  
+  /* Editable cell styles */
+  .ant-table-cell-editable {
+    padding: 8px;
+  }
+  
+  /* Status tag styles */
+  .ant-tag {
+    margin-right: 0;
+  }
+  
+  /* Footer styles */
+  .ant-layout-footer {
+    text-align: center;
+    background: #f0f2f5;
+    padding: 12px 50px;
+    border-top: 1px solid #e8e8e8;
+  }
+  
