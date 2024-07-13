@@ -1,53 +1,61 @@
 import React from 'react';
-import { Space, Typography, Input, Button } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons'; // Added LockOutlined for password input
-import { Link } from 'react-router-dom'; // Import Link from react-router-dom
+import { Form, Input, Button, Typography } from 'antd';
+import { Link } from 'react-router-dom';
 import './loginPage.css';
 
-const { Text } = Typography;
 const { Title } = Typography;
 
 const LoginPage = () => {
+  const onFinish = (values) => {
+    console.log('Success:', values);
+  };
+
+  const onFinishFailed = (errorInfo) => {
+    console.log('Failed:', errorInfo);
+  };
+
   return (
-    <div className='main-container'>
+    <div className="main-container">
       <div className="left-container">
         <div className="login-container">
-          <div className='login-info'>
-            <div className='login-text'>
-              <Title level={4} className='signin-button'>Войти</Title>
-            </div>
+          <Title className="login-text" level={2}>Войти</Title>
+          <Form
+            name="login"
+            initialValues={{ remember: true }}
+            onFinish={onFinish}
+            onFinishFailed={onFinishFailed}
+            layout="vertical"
+          >
+            <Form.Item
+              label="Имя пользователя"
+              name="username"
+            >
+              <Input placeholder="email" />
+            </Form.Item>
 
-            <div className="login-username">
-              <Space direction="vertical">
-                <Text>Имя пользователя</Text>
-              </Space>
-              <br />
-              <Input placeholder="email" prefix={<UserOutlined />} />
-              <br />
-            </div>
+            <Form.Item
+              label="Пароль"
+              name="password"
+            >
+              <Input.Password placeholder="email" />
+            </Form.Item>
 
-            <div className="login-password">
-              <Space direction="vertical">
-                <Text>Пароль <span style={{ color: 'red' }}>*</span> </Text>
-              </Space>
-              <br />
-              <Input placeholder="password" prefix={<LockOutlined />} />
-              <br />
-            </div>
-          </div>
-
+            <Form.Item>
+              <Link to="/mainpage">
+                <Button type="primary" htmlType="submit" className="login-button">
+                  Логин
+                </Button>
+              </Link>
+            </Form.Item>
+          </Form>
           <div className="button-text">
-          <Link to="/mainpage"><Button type="primary" className='login-button'>Логин</Button><br /></Link>
-            
-            <Link to="/register"><Text underline>Регистрация</Text></Link>
-            <br />
+            <Link to="/register">
+              <Button type="link" className="registration-button">Регистрация</Button>
+            </Link>
           </div>
-          
         </div>
       </div>
-
-      <div className="right-container">
-      </div>
+      <div className="right-container" />
     </div>
   );
 };
