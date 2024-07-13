@@ -6,6 +6,7 @@ import {
   FormOutlined,
   MenuUnfoldOutlined,
   OrderedListOutlined,
+  MenuFoldOutlined
 } from '@ant-design/icons';
 import { Layout, Menu, Typography, Avatar, Space, Button, theme } from 'antd';
 import { Link, Outlet } from 'react-router-dom';
@@ -46,7 +47,9 @@ const MainPage = () => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider trigger={null} collapsible collapsed={collapsed}>
-        <div className="whiteray-logo">Whiteray</div>
+        <div className="whiteray-logo">
+          {collapsed ? 'W' : 'Whiteray'}
+        </div>
         <Menu
           theme="dark"
           mode="inline"
@@ -65,7 +68,7 @@ const MainPage = () => {
         >
           <Button
             type="text"
-            icon={<MenuUnfoldOutlined />}
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setCollapsed(!collapsed)}
             style={{
               fontSize: '16px',

@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import { EditableProTable } from '@ant-design/pro-components';
-import { Select, message, Typography } from 'antd';
+import { Select, message, Typography, Badge } from 'antd';
 import './OrderList.css';
 
 const { Title } = Typography;
 
 const statusOptions = [
-  { label: 'В процессе', value: 'in-progress' },
-  { label: 'Доставлено', value: 'delivered' },
-  { label: 'Готов к отправке', value: 'ready' },
+  { label: 'В процессе', value: 'in-progress', color: 'orange' },
+  { label: 'Доставлено', value: 'delivered', color: 'green' },
+  { label: 'Готов к отправке', value: 'ready', color: 'blue' },
 ];
 
 const defaultData = [
-  { id: 1, client: 'Les Ailes', product: 'Сахар стик', quantity: 10, price: 100, status: 'in-progress' },
-  { id: 2, client: 'Chopar', product: 'Сахар сашет', quantity: 20, price: 200, status: 'delivered' },
+  { id: 1, client: 'Les Ailes', product: 'Сахар стик', quantity: 10, price: '100 сум', status: 'in-progress' },
+  { id: 2, client: 'Chopar', product: 'Сахар сашет', quantity: 20, price: '200 сум', status: 'delivered' },
 ];
 
 const OrderList = () => {
@@ -45,26 +45,30 @@ const OrderList = () => {
     {
       title: 'Цена',
       dataIndex: 'price',
-      valueType: 'money',
+      valueType: 'text',
       editable: false,
-      render: (value) => `${Number(value).toLocaleString()} сум`,
     },
     {
       title: 'Статус',
       dataIndex: 'status',
       valueType: 'select',
       renderFormItem: (_, { record }) => (
-        <Select placeholder="Выберите статус" defaultValue={record.status} style={{ width: '100%' }}>
+        <Select
+          placeholder="Выберите статус"
+          defaultValue={record.status}
+          style={{ width: '100%' }}
+          dropdownStyle={{ minWidth: '160px' }}
+        >
           {statusOptions.map(option => (
             <Select.Option key={option.value} value={option.value}>
-              {option.label}
+              <Badge color={option.color} text={option.label} />
             </Select.Option>
           ))}
         </Select>
       ),
       render: (_, record) => {
         const statusOption = statusOptions.find(option => option.value === record.status);
-        return statusOption ? statusOption.label : null;
+        return statusOption ? <Badge color={statusOption.color} text={statusOption.label} /> : null;
       },
     },
   ];
