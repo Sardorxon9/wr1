@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import { EditableProTable } from '@ant-design/pro-components';
-import { Select, message, Typography, Badge, Radio, Card, Switch, Button } from 'antd';
-import { UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { Select, message, Typography, Badge, Radio, Card, Switch } from 'antd';
+import { UnorderedListOutlined, AppstoreOutlined, CodeSandboxOutlined, CarOutlined } from '@ant-design/icons';
 import './OrderList.css';
 
 const { Title, Text } = Typography;
 
 const statusOptions = [
-  { label: 'В процессе', value: 'in-progress', color: 'orange' },
-  { label: 'Доставлено', value: 'delivered', color: 'green', backgroundColor: '#E3F6EB', textColor: '#3D8C5C' },
-  { label: 'Готов к отправке', value: 'ready', color: 'blue' },
+  { label: 'В процессе', value: 'in-progress', color: 'orange', backgroundColor: '#E6F4FF', textColor: '#355A77', icon: <CarOutlined /> },
+  { label: 'Доставлено', value: 'delivered', color: 'green', backgroundColor: '#E3F6EB', textColor: '#3D8C5C', icon: <CarOutlined /> },
+  { label: 'Готов к отправке', value: 'ready', color: 'blue', backgroundColor: '#FDEADC', textColor: '#D8844C', icon: <CodeSandboxOutlined /> },
 ];
 
 const defaultData = [
-  { id: 1, client: 'Les Ailes', product: 'Сахар стик', quantity: 10, price: '100 сум', status: 'in-progress', date: '2024.02.16' },
-  { id: 2, client: 'Chopar', product: 'Сахар сашет', quantity: 20, price: '200 сум', status: 'delivered', date: '2024.02.16' },
+  { id: 1, client: 'Les Ailes', product: 'Сахар стик', quantity: 10, price: '1,780,000 сум', status: 'in-progress', date: '2024.02.16' },
+  { id: 2, client: 'Chopar', product: 'Сахар сашет', quantity: 20, price: '2,450,000 сум', status: 'delivered', date: '2024.02.16' },
+  { id: 3, client: 'Big Burger', product: 'Соль', quantity: 30, price: '3,300,000 сум', status: 'ready', date: '2024.02.16' },
 ];
 
 const OrderList = () => {
@@ -33,21 +34,30 @@ const OrderList = () => {
     }
   };
 
-  const handleStatusChange = (id, status) => {
-    const newData = dataSource.map(item => (item.id === id ? { ...item, status } : item));
+  const handleStatusChange = (id, newStatus) => {
+    const newData = dataSource.map(item => (item.id === id ? { ...item, status: newStatus } : item));
     setDataSource(newData);
   };
 
   const renderCardView = () => (
     <div className="card-container">
       {dataSource.map(order => (
-        <Card key={order.id} className="order-card" style={{ width: 300, borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)' }}>
+        <Card key={order.id} className="order-card">
           <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>{order.date}</Text>
           <Text strong style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{order.client.toUpperCase()}</Text>
           <Text style={{ display: 'block', marginBottom: 8 }}>{order.product}</Text>
           <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity} шт</Text>
           <Text strong style={{ fontSize: 20, fontWeight: 600, display: 'block', marginBottom: 16 }}>{order.price}</Text>
-          <Button type="primary" style={{ backgroundColor: statusOptions.find(option => option.value === order.status).backgroundColor, color: statusOptions.find(option => option.value === order.status).textColor, border: 'none', marginBottom: 16 }}>{statusOptions.find(option => option.value === order.status).label}</Button>
+          <Badge
+            color={statusOptions.find(option => option.value === order.status).backgroundColor}
+            text={(
+              <>
+                {statusOptions.find(option => option.value === order.status).icon}
+                <span style={{ marginLeft: 4 }}>{statusOptions.find(option => option.value === order.status).label}</span>
+              </>
+            )}
+            style={{ backgroundColor: statusOptions.find(option => option.value === order.status).backgroundColor, color: statusOptions.find(option => option.value === order.status).textColor, marginBottom: 16, display: 'block', padding: '5px 10px', borderRadius: '5px' }}
+          />
           <div className="order-card-switch">
             <Switch
               checked={order.status === 'delivered'}
@@ -102,17 +112,31 @@ const OrderList = () => {
         >
           {statusOptions.map(option => (
             <Select.Option key={option.value} value={option.value}>
-              <Badge color={option.color} text={option.label} />
+              <span style={{ display: 'flex', alignItems: 'center' }}>
+                <Badge color={option.color} />
+                <span style={{ marginLeft: 8 }}>{option.label}</span>
+              </span>
             </Select.Option>
           ))}
         </Select>
       ),
       render: (_, record) => {
         const statusOption = statusOptions.find(option => option.value === record.status);
-        if (statusOption && statusOption.value === 'delivered') {
-          return <Badge color={statusOption.backgroundColor} text={statusOption.label} style={{ color: statusOption.textColor }} />;
+        if (statusOption) {
+          return (
+            <Badge
+              color={statusOption.backgroundColor}
+              text={(
+                <>
+                  {statusOption.icon}
+                  <span style={{ marginLeft: 4 }}>{statusOption.label}</span>
+                </>
+              )}
+              style={{ backgroundColor: statusOption.backgroundColor, color: statusOption.textColor }}
+            />
+          );
         }
-        return statusOption ? <Badge color={statusOption.color} text={statusOption.label} /> : null;
+        return null;
       },
     },
   ];
