@@ -65,15 +65,52 @@
   min-width: 160px;
 }
 
-/* Remove padding-inline from .ant-pro-card .ant-pro-card-body */
-.ant-pro-card .ant-pro-card-body {
-  padding-inline: 0 !important;
-}
-
 /* Footer styles */
 .ant-layout-footer {
   text-align: center;
   background: #f0f2f5;
   padding: 12px 50px;
   border-top: 1px solid #e8e8e8;
+}
+
+/* Card view styles */
+.card-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 24px; /* Added margin to separate cards from radio buttons */
+}
+
+.order-card {
+  width: 300px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 12px; /* Decrease padding */
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.order-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.order-card-switch {
+  display: flex;
+  align-items: center;
+  white-space: nowrap; /* Ensure text stays on one line */
+}
+
+/* Header for Order List */
+.order-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
 }
