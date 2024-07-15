@@ -1,79 +1,45 @@
-/* General layout */
-.order-list-container {
-  padding: 24px;
-  background: #fff;
-  border-radius: 8px;
+.order-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
-/* Header styles */
-.whiteray-logo {
-  color: white;
-  font-size: 20px;
-  font-weight: bold;
-  padding: 16px;
-  text-align: center;
+.card-container {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
-.userdata {
+.order-card {
+  width: 300px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+}
+
+.order-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.order-card-switch {
+  display: flex;
+  align-items: center;
+  white-space: nowrap; /* Ensure text stays on one line */
+}
+
+.ant-badge-status {
   display: flex;
   align-items: center;
 }
 
-.user-info {
-  margin-left: 10px;
-}
-
-.user-name {
-  font-weight: bold;
-}
-
-.user-role {
-  font-size: 14px;
-  color: #1890ff;
-}
-
-/* Table styles */
-.ant-pro-table {
-  margin-top: 16px;
-}
-
-.ant-table-thead > tr > th {
-  background-color: #fafafa;
-  font-weight: bold;
-}
-
-.ant-table-tbody > tr > td {
-  background-color: #fff;
-}
-
-/* Editable cell styles */
-.ant-table-cell-editable {
-  padding: 8px;
-}
-
-/* Status tag styles */
-.ant-tag {
-  margin-right: 0;
-}
-
-/* Dropdown styles */
-.ant-select {
-  width: 100% !important;
-}
-
-.ant-select-dropdown {
-  min-width: 160px;
-}
-
-/* Remove padding-inline from .ant-pro-card .ant-pro-card-body */
-.ant-pro-card .ant-pro-card-body {
-  padding-inline: 0 !important;
-}
-
-/* Footer styles */
-.ant-layout-footer {
-  text-align: center;
-  background: #f0f2f5;
-  padding: 12px 50px;
-  border-top: 1px solid #e8e8e8;
+.ant-badge.ant-badge-status .ant-badge-status-text {
+  margin-inline-start: -2px;
+  
 }
