@@ -14,6 +14,8 @@ import './mainPage.css';
 import { auth, db } from '../login-signUp/firebase';
 import { getDoc, doc } from "firebase/firestore";
 
+
+
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
@@ -27,7 +29,7 @@ const MainPage = () => {
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setUserDetails(docSnap.data());
-        console.log(1, docSnap.data());
+        console.log(1, docSnap.data().email);
       }
       else {
         console.log("No logged in user");
@@ -118,7 +120,8 @@ const MainPage = () => {
             borderRadius: borderRadiusLG,
           }}
         >
-          <Outlet />
+          
+          <Outlet context={ {userDetails} }/>
         </Content>
       </Layout>
     </Layout>
