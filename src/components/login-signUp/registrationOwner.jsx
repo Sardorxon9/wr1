@@ -1,15 +1,41 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Form, Input, Button, Typography } from 'antd';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeftOutlined } from '@ant-design/icons';
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import './registrationOwner.css';
+import { auth, db } from "./firebase";
+import {setDoc, doc} from "firebase/firestore";
 
 const { Title } = Typography;
 
 const RegistrationOwner = () => {
-  const onFinish = (values) => {
-    console.log('Success:', values);
-  };
+  const [fname, setFname] = useState("");
+  const [lname, setLname] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [organization, setOrganization] = useState("");
+
+  const navigate = useNavigate(); 
+  const handleRegister = async (values) => {
+    try {
+      await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = auth.currentUser;
+      if (user) {
+        await setDoc(doc(db, "users-info", user.uid), {
+          firstName: values.firstName,
+          lastName: values.lastName,
+          email: values.email,
+          organization: values.organization,
+        });
+      }
+      console.log(user);
+      navigate("/");
+    } catch (error) {
+      console.log(error.message);
+      
+    } 
+  }
 
   const onFinishFailed = (errorInfo) => {
     console.log('Failed:', errorInfo);
@@ -26,10 +52,11 @@ const RegistrationOwner = () => {
               </Link>
               <Title className="signup-text" level={2}>Регистрация</Title>
             </div>
+
             <Form
               name="signup"
               initialValues={{ remember: true }}
-              onFinish={onFinish}
+              onFinish={handleRegister}
               onFinishFailed={onFinishFailed}
               layout="vertical"
             >
@@ -38,7 +65,7 @@ const RegistrationOwner = () => {
                 name="firstName"
                 rules={[{ required: true, message: 'Пожалуйста, введите ваше имя!' }]}
               >
-                <Input placeholder="Ваше имя" />
+                <Input placeholder="Ваше имя" onChange={(e) => setFname(e.target.value)} />
               </Form.Item>
 
               <Form.Item
@@ -52,6 +79,7 @@ const RegistrationOwner = () => {
               <Form.Item
                 label="Email"
                 name="email"
+                type="email"
                 rules={[{ required: true, message: 'Пожалуйста, введите ваш email!' }]}
               >
                 <Input type="email" placeholder="email" />
@@ -87,6 +115,7 @@ const RegistrationOwner = () => {
                 </Button>
               </Form.Item>
             </Form>
+
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DashboardOutlined,
   LogoutOutlined,
@@ -11,11 +11,33 @@ import {
 import { Layout, Menu, Typography, Avatar, Space, Button, theme } from 'antd';
 import { Link, Outlet } from 'react-router-dom';
 import './mainPage.css';
+import { auth, db } from '../login-signUp/firebase';
+import { getDoc, doc } from "firebase/firestore";
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
 const MainPage = () => {
+  const [userDetails, setUserDetails] = useState(null);
+
+  const fetchUserData = async () => {
+    auth.onAuthStateChanged(async (user) => {
+      console.log(user)
+      const docRef = doc(db, "users-info", user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setUserDetails(docSnap.data());
+        console.log(1, docSnap.data());
+      }
+      else {
+        console.log("No logged in user");
+      }
+    })
+  };
+  useEffect(() => {
+    fetchUserData();
+  }, [])
+
   const [collapsed, setCollapsed] = useState(false);
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -45,10 +67,11 @@ const MainPage = () => {
   ];
 
   return (
+    
     <Layout style={{ minHeight: '100vh' }}>
       <Sider trigger={null} collapsible collapsed={collapsed}>
         <div className="whiteray-logo">
-          {collapsed ? 'W' : 'Whiteray'}
+          {collapsed ? 'W' : 'WhiteRay'}
         </div>
         <Menu
           theme="dark"
@@ -80,7 +103,7 @@ const MainPage = () => {
             <div className="userdata" style={{ display: 'flex', alignItems: 'center' }}>
               <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
               <Space direction="vertical" size={0} className="user-info" style={{ marginLeft: '10px' }}>
-                <Text className="user-name" strong>Бахтиер Орипов</Text>
+                <Text className="user-name" strong>{userDetails?.firstName}</Text>
                 <Text className="user-role">Администратор</Text>
               </Space>
             </div>
