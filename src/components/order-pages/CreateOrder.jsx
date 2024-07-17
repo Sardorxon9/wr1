@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, DatePicker, Select, InputNumber, Radio, Typography, Space, message } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './CreateOrder.css';
+import { useOutletContext } from 'react-router-dom';
+import { auth, db } from "../login-signUp/firebase";
+import { setDoc, doc } from "firebase/firestore";
+import moment from 'moment';
 
 const { Title, Text } = Typography;
 
@@ -20,19 +24,33 @@ const CreateOrder = () => {
     setOrderPreview(allValues);
   };
 
-  const onFinish = (values) => {
-    console.log('Order Details:', values);
-    messageApi.open({
-      type: 'success',
-      content: 'Заказ успешно добавлен!',
-    });
+  const onFinish = async (values) => {
+    try {
+      const orderId = `order_${new Date().getTime()}`; 
+      const orderData = {
+        ...values,
+        date: values.date.toDate(),
+        total: values.quantity * values.price,
+      };
+      await setDoc(doc(db, "orders", orderId), orderData);
+      messageApi.open({
+        type: 'success',
+        content: 'Заказ успешно добавлен!',
+      });
+      form.resetFields();
+      setOrderPreview({ client: '', product: '', quantity: 1, price: 0 });
+    } catch (error) {
+      messageApi.open({
+        type: 'error',
+        content: 'Ошибк: ' + error.message,
+      });
+    }
   };
 
   return (
     <div className="create-order-container">
       {contextHolder}
       <div className="order-header">
-        
         <div className="header-content-page">
           <Title level={3}>Добавить новый заказ</Title>
           <Text>Заказ номер: 24A001</Text>
