@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+// OrderList.jsx
+import React, { useState, useEffect } from 'react';
 import { EditableProTable } from '@ant-design/pro-components';
 import { Select, message, Typography, Badge, Radio, Card, Switch } from 'antd';
 import { UnorderedListOutlined, AppstoreOutlined, CodeSandboxOutlined, CarOutlined } from '@ant-design/icons';
+import { collection, getDocs } from "firebase/firestore";
+import { db } from '../login-signUp/firebase'; // Adjust the import path according to your project structure
 import './OrderList.css';
 
 const { Title, Text } = Typography;
@@ -12,16 +15,21 @@ const statusOptions = [
   { label: 'Готов к отправке', value: 'ready', color: 'blue', backgroundColor: '#FDEADC', textColor: '#D8844C', icon: <CodeSandboxOutlined /> },
 ];
 
-const defaultData = [
-  { id: 1, client: 'Les Ailes', product: 'Сахар стик', quantity: 10, price: '1,780,000 сум', status: 'in-progress', date: '2024.02.16' },
-  { id: 2, client: 'Chopar', product: 'Сахар сашет', quantity: 20, price: '2,450,000 сум', status: 'delivered', date: '2024.02.16' },
-  { id: 3, client: 'Big Burger', product: 'Соль', quantity: 30, price: '3,300,000 сум', status: 'ready', date: '2024.02.16' },
-];
-
 const OrderList = () => {
-  const [editableKeys, setEditableRowKeys] = useState(() => defaultData.map((item) => item.id));
-  const [dataSource, setDataSource] = useState(defaultData);
+  const [editableKeys, setEditableRowKeys] = useState([]);
+  const [dataSource, setDataSource] = useState([]);
   const [viewMode, setViewMode] = useState('table');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const querySnapshot = await getDocs(collection(db, "orders"));
+      const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setDataSource(orders);
+      setEditableRowKeys(orders.map(order => order.id));
+    };
+
+    fetchData();
+  }, []);
 
   const handleSave = async (row) => {
     const newData = [...dataSource];
@@ -167,7 +175,7 @@ const OrderList = () => {
             onSave: handleSave,
             onChange: setEditableRowKeys,
           }}
-          recordCreatorProps={false} // This removes the "+" button
+          recordCreatorProps={false} 
         />
       ) : (
         renderCardView()
