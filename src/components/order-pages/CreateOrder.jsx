@@ -31,6 +31,7 @@ const CreateOrder = () => {
         ...values,
         date: values.date.toDate(),
         total: values.quantity * values.price,
+        email: auth.currentUser.email,
       };
       await setDoc(doc(db, "orders", orderId), orderData);
       messageApi.open({
