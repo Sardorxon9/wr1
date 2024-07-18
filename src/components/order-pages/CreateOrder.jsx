@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, DatePicker, Select, InputNumber, Radio, Typography, Space, message } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import './CreateOrder.css';
 import { useOutletContext } from 'react-router-dom';
 import { auth, db } from "../login-signUp/firebase";
 import { setDoc, doc } from "firebase/firestore";
-import moment from 'moment';
 
 const { Title, Text } = Typography;
 
@@ -26,7 +25,7 @@ const CreateOrder = () => {
 
   const onFinish = async (values) => {
     try {
-      const orderId = `order_${new Date().getTime()}`; 
+      const orderId = `order_${new Date().getTime()}`;
       const orderData = {
         ...values,
         date: values.date.toDate(),
@@ -43,7 +42,7 @@ const CreateOrder = () => {
     } catch (error) {
       messageApi.open({
         type: 'error',
-        content: 'Ошибк: ' + error.message,
+        content: 'Ошибка: ' + error.message,
       });
     }
   };
@@ -86,10 +85,10 @@ const CreateOrder = () => {
           </div>
           <div className="form-row">
             <Form.Item name="quantity" label="Количество" rules={[{ required: true, message: 'Пожалуйста, введите количество!' }]}>
-              <InputNumber min={1} defaultValue={1} style={{ width: '100%' }} />
+              <InputNumber min={1} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="price" label="Цена" rules={[{ required: true, message: 'Пожалуйста, введите цену!' }]}>
-              <InputNumber min={0} defaultValue={0} style={{ width: '100%' }} />
+              <InputNumber min={0} style={{ width: '100%' }} />
             </Form.Item>
             <Form.Item name="status" label="Статус" rules={[{ required: true, message: 'Пожалуйста, выберите статус!' }]}>
               <Radio.Group>

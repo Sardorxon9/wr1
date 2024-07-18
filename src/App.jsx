@@ -6,7 +6,8 @@ import SuccessPage from './components/login-signUp/successPage';
 import MainPage from './components/main-page/mainPage';
 import Dashboard from './components/Dashboard';
 import CreateOrder from './components/order-pages/CreateOrder';
-import OrderList from './components/order-pages/OrderList'; // Ensure case sensitivity
+import OrderList from './components/order-pages/OrderList';
+import Employees from './components/employees/Employees';
 import './App.css';
 
 export default function App() {
@@ -20,7 +21,8 @@ export default function App() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="create-order" element={<CreateOrder />} />
-          <Route path="order-list" element={<OrderList />} /> {/* Add this route */}
+          <Route path="order-list" element={<OrderList />} />
+          <Route path="employees" element={<Employees />} />
         </Route>
       </Routes>
     </Router>

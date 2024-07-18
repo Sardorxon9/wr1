@@ -6,15 +6,14 @@ import {
   FormOutlined,
   MenuUnfoldOutlined,
   OrderedListOutlined,
-  MenuFoldOutlined
+  MenuFoldOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { Layout, Menu, Typography, Avatar, Space, Button, theme } from 'antd';
 import { Link, Outlet } from 'react-router-dom';
 import './mainPage.css';
 import { auth, db } from '../login-signUp/firebase';
 import { getDoc, doc } from "firebase/firestore";
-
-
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -30,15 +29,15 @@ const MainPage = () => {
       if (docSnap.exists()) {
         setUserDetails(docSnap.data());
         console.log(1, docSnap.data().email);
-      }
-      else {
+      } else {
         console.log("No logged in user");
       }
-    })
+    });
   };
+
   useEffect(() => {
     fetchUserData();
-  }, [])
+  }, []);
 
   const [collapsed, setCollapsed] = useState(false);
   const {
@@ -63,13 +62,17 @@ const MainPage = () => {
     },
     {
       key: '4',
+      icon: <TeamOutlined />,
+      label: <Link to="/mainpage/employees">Сотрудники</Link>,
+    },
+    {
+      key: '5',
       icon: <LogoutOutlined />,
       label: <Link to="/">Log Out</Link>,
     },
   ];
 
   return (
-    
     <Layout style={{ minHeight: '100vh' }}>
       <Sider trigger={null} collapsible collapsed={collapsed}>
         <div className="whiteray-logo">
@@ -120,8 +123,7 @@ const MainPage = () => {
             borderRadius: borderRadiusLG,
           }}
         >
-          
-          <Outlet context={ {userDetails} }/>
+          <Outlet context={{ userDetails }} />
         </Content>
       </Layout>
     </Layout>
