@@ -8,6 +8,7 @@ import Dashboard from './components/Dashboard';
 import CreateOrder from './components/order-pages/CreateOrder';
 import OrderList from './components/order-pages/OrderList';
 import Employees from './components/employees/Employees';
+import Products from './components/product-pages/Products'; // Import the new Products component
 import './App.css';
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="create-order" element={<CreateOrder />} />
           <Route path="order-list" element={<OrderList />} />
           <Route path="employees" element={<Employees />} />
+          <Route path="products" element={<Products />} /> {/* Add the new Products route */}
         </Route>
       </Routes>
     </Router>

@@ -8,7 +8,9 @@ import {
   OrderedListOutlined,
   MenuFoldOutlined,
   TeamOutlined,
+  AppstoreAddOutlined,
 } from '@ant-design/icons';
+
 import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification,theme } from 'antd';
 import { Link, Outlet } from 'react-router-dom';
 import './mainPage.css';
@@ -86,10 +88,16 @@ const MainPage = () => {
     },
     {
       key: '5',
+      icon: <AppstoreAddOutlined />,
+      label: <Link to="/mainpage/products">Продукты</Link>,
+    },
+    {
+      key: '6',
       icon: <LogoutOutlined />,
       label: <Link to="/">Log Out</Link>,
     },
   ];
+
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

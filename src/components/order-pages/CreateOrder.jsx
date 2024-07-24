@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import './CreateOrder.css';
 import { useOutletContext } from 'react-router-dom';
 import { auth, db } from "../login-signUp/firebase";
-import { setDoc, doc, getDoc } from "firebase/firestore";
+import { setDoc, doc, getDocs, collection } from "firebase/firestore";
 
 const { Title, Text } = Typography;
 
@@ -18,6 +18,7 @@ const CreateOrder = () => {
     quantity: 1,
     price: 0,
   });
+  const [products, setProducts] = useState([]);
   const [organizationID, setOrganizationID] = useState('');
 
   const fetchUserData = async () => {
@@ -27,8 +28,6 @@ const CreateOrder = () => {
       const userDocSnap = await getDoc(userDocRef);
       if (userDocSnap.exists()) {
         setOrganizationID(userDocSnap.data().organizationID);
-      } else {
-        console.error("No such user!");
       }
     }
   };
@@ -36,6 +35,18 @@ const CreateOrder = () => {
   useEffect(() => {
     fetchUserData();
   }, []);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (organizationID) {
+        const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
+        const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setProducts(productsData);
+      }
+    };
+
+    fetchProducts();
+  }, [organizationID]);
 
   const onValuesChange = (_, allValues) => {
     setOrderPreview(allValues);
@@ -95,9 +106,11 @@ const CreateOrder = () => {
             </Form.Item>
             <Form.Item name="product" label="Продукт" rules={[{ required: true, message: 'Пожалуйста, выберите продукт!' }]}>
               <Select placeholder="Выберите продукт">
-                <Select.Option value="Сахар стик">Сахар стик</Select.Option>
-                <Select.Option value="сахар сашет">сахар сашет</Select.Option>
-                <Select.Option value="соль">соль</Select.Option>
+                {products.map(product => (
+                  <Select.Option key={product.id} value={product.title}>
+                    {product.title}
+                  </Select.Option>
+                ))}
               </Select>
             </Form.Item>
           </div>
