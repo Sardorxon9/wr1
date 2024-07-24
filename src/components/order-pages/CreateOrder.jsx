@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, DatePicker, Select, InputNumber, Radio, Typography, Space, message } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import './CreateOrder.css';
 import { useOutletContext } from 'react-router-dom';
 import { auth, db } from "../login-signUp/firebase";
-import { setDoc, doc } from "firebase/firestore";
+import { setDoc, doc, getDoc } from "firebase/firestore";
 
 const { Title, Text } = Typography;
 
@@ -18,6 +18,24 @@ const CreateOrder = () => {
     quantity: 1,
     price: 0,
   });
+  const [organizationID, setOrganizationID] = useState('');
+
+  const fetchUserData = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const userDocRef = doc(db, "owner-users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        setOrganizationID(userDocSnap.data().organizationID);
+      } else {
+        console.error("No such user!");
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
 
   const onValuesChange = (_, allValues) => {
     setOrderPreview(allValues);
@@ -32,7 +50,7 @@ const CreateOrder = () => {
         total: values.quantity * values.price,
         email: auth.currentUser.email,
       };
-      await setDoc(doc(db, "orders", orderId), orderData);
+      await setDoc(doc(db, `organizations/${organizationID}/orders`, orderId), orderData);
       messageApi.open({
         type: 'success',
         content: 'Заказ успешно добавлен!',

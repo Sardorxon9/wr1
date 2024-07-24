@@ -1,10 +1,9 @@
-// OrderList.jsx
 import React, { useState, useEffect } from 'react';
 import { EditableProTable } from '@ant-design/pro-components';
 import { Select, message, Typography, Badge, Radio, Card, Switch } from 'antd';
 import { UnorderedListOutlined, AppstoreOutlined, CodeSandboxOutlined, CarOutlined } from '@ant-design/icons';
-import { collection, getDocs } from "firebase/firestore";
-import { db } from '../login-signUp/firebase'; // Adjust the import path according to your project structure
+import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from '../login-signUp/firebase'; // Adjust the import path according to your project structure
 import './OrderList.css';
 
 const { Title, Text } = Typography;
@@ -19,39 +18,74 @@ const OrderList = () => {
   const [editableKeys, setEditableRowKeys] = useState([]);
   const [dataSource, setDataSource] = useState([]);
   const [viewMode, setViewMode] = useState('table');
+  const [organizationID, setOrganizationID] = useState('');
 
   useEffect(() => {
-    const fetchData = async () => {
-      const querySnapshot = await getDocs(collection(db, "orders"));
-      const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setDataSource(orders);
-      setEditableRowKeys(orders.map(order => order.id));
+    const fetchUserData = async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const userDocRef = doc(db, "owner-users", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          setOrganizationID(userDocSnap.data().organizationID);
+        } else {
+          console.error("No such user!");
+        }
+      }
     };
 
-    fetchData();
+    fetchUserData();
   }, []);
 
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (organizationID) {
+        const querySnapshot = await getDocs(collection(db, `organizations/${organizationID}/orders`));
+        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setDataSource(orders);
+        setEditableRowKeys(orders.map(order => order.id));
+      }
+    };
+
+    fetchOrders();
+  }, [organizationID]);
+
   const handleSave = async (row) => {
-    const newData = [...dataSource];
-    const index = newData.findIndex((item) => row.id === item.id);
-    if (index > -1) {
-      const item = newData[index];
-      newData.splice(index, 1, { ...item, ...row });
-      setDataSource(newData);
-      message.success('Данные успешно сохранены!');
+    try {
+      const newData = [...dataSource];
+      const index = newData.findIndex((item) => row.id === item.id);
+      if (index > -1) {
+        const item = newData[index];
+        newData.splice(index, 1, { ...item, ...row });
+        setDataSource(newData);
+
+        const orderRef = doc(db, `organizations/${organizationID}/orders`, row.id);
+        await updateDoc(orderRef, row);
+
+        message.success('Данные успешно сохранены!');
+      }
+    } catch (error) {
+      message.error('Ошибка сохранения данных: ' + error.message);
     }
   };
 
-  const handleStatusChange = (id, newStatus) => {
-    const newData = dataSource.map(item => (item.id === id ? { ...item, status: newStatus } : item));
-    setDataSource(newData);
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      const newData = dataSource.map(item => (item.id === id ? { ...item, status: newStatus } : item));
+      setDataSource(newData);
+
+      const orderRef = doc(db, `organizations/${organizationID}/orders`, id);
+      await updateDoc(orderRef, { status: newStatus });
+    } catch (error) {
+      message.error('Ошибка обновления статуса: ' + error.message);
+    }
   };
 
   const renderCardView = () => (
     <div className="card-container">
       {dataSource.map(order => (
         <Card key={order.id} className="order-card">
-          <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>{order.date}</Text>
+          <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>{new Date(order.date.seconds * 1000).toLocaleDateString()}</Text>
           <Text strong style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{order.client.toUpperCase()}</Text>
           <Text style={{ display: 'block', marginBottom: 8 }}>{order.product}</Text>
           <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity} шт</Text>
