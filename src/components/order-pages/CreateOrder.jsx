@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, DatePicker, Select, InputNumber, Radio, Typography, Space, message } from 'antd';
+import { Form, Input, Button, DatePicker, InputNumber, Radio, Typography, Space, message, Cascader, Select } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import './CreateOrder.css';
-import { useOutletContext } from 'react-router-dom';
 import { auth, db } from "../login-signUp/firebase";
-import { setDoc, doc, getDocs, collection } from "firebase/firestore";
+import { setDoc, doc, getDoc, collection, getDocs } from "firebase/firestore";
 
 const { Title, Text } = Typography;
 
@@ -14,12 +13,14 @@ const CreateOrder = () => {
   const [messageApi, contextHolder] = message.useMessage();
   const [orderPreview, setOrderPreview] = useState({
     client: '',
-    product: '',
+    product: [],
     quantity: 1,
     price: 0,
   });
-  const [products, setProducts] = useState([]);
   const [organizationID, setOrganizationID] = useState('');
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [cascaderOptions, setCascaderOptions] = useState([]);
 
   const fetchUserData = async () => {
     const user = auth.currentUser;
@@ -28,6 +29,8 @@ const CreateOrder = () => {
       const userDocSnap = await getDoc(userDocRef);
       if (userDocSnap.exists()) {
         setOrganizationID(userDocSnap.data().organizationID);
+      } else {
+        console.error("No such user!");
       }
     }
   };
@@ -37,15 +40,30 @@ const CreateOrder = () => {
   }, []);
 
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchProductsAndCategories = async () => {
       if (organizationID) {
         const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
         const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(productsData);
+
+        const categoriesSnapshot = await getDocs(collection(db, `organizations/${organizationID}/product-categories`));
+        const categoriesData = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setCategories(categoriesData);
+
+        const options = categoriesData.map(category => ({
+          value: category.name,
+          label: category.name,
+          children: productsData.filter(product => product.category === category.name).map(product => ({
+            value: product.title,
+            label: product.title,
+          })),
+        }));
+
+        setCascaderOptions(options);
       }
     };
 
-    fetchProducts();
+    fetchProductsAndCategories();
   }, [organizationID]);
 
   const onValuesChange = (_, allValues) => {
@@ -58,6 +76,7 @@ const CreateOrder = () => {
       const orderData = {
         ...values,
         date: values.date.toDate(),
+        product: values.product ? values.product.join(' > ') : '',
         total: values.quantity * values.price,
         email: auth.currentUser.email,
       };
@@ -67,7 +86,7 @@ const CreateOrder = () => {
         content: 'Заказ успешно добавлен!',
       });
       form.resetFields();
-      setOrderPreview({ client: '', product: '', quantity: 1, price: 0 });
+      setOrderPreview({ client: '', product: [], quantity: 1, price: 0 });
     } catch (error) {
       messageApi.open({
         type: 'error',
@@ -105,13 +124,7 @@ const CreateOrder = () => {
               </Select>
             </Form.Item>
             <Form.Item name="product" label="Продукт" rules={[{ required: true, message: 'Пожалуйста, выберите продукт!' }]}>
-              <Select placeholder="Выберите продукт">
-                {products.map(product => (
-                  <Select.Option key={product.id} value={product.title}>
-                    {product.title}
-                  </Select.Option>
-                ))}
-              </Select>
+              <Cascader options={cascaderOptions} placeholder="Выберите продукт" />
             </Form.Item>
           </div>
           <div className="form-row">
@@ -132,7 +145,7 @@ const CreateOrder = () => {
           <div className="order-preview">
             <div className="order-summary">
               <div><Text strong>Клиент:</Text> {orderPreview.client}</div>
-              <div><Text strong>Продукт:</Text> {orderPreview.product}</div>
+              <div><Text strong>Продукт:</Text> {Array.isArray(orderPreview.product) ? orderPreview.product.join(' > ') : ''}</div>
               <div><Text strong>Количество:</Text> {orderPreview.quantity}</div>
               <div><Text strong>Цена:</Text> {orderPreview.price} сум</div>
               <div className="order-total"><Text strong>Итого:</Text> {(orderPreview.quantity * orderPreview.price).toLocaleString()} сум</div>

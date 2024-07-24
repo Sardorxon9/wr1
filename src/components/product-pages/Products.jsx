@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Button, Modal, Form, Input, Select, message, Tabs, Row, Col, Space } from 'antd';
+import { Card, Typography, Button, Modal, Form, Input, Select, message, Tabs, Row, Col, Space, Spin } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { collection, getDocs, addDoc, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../login-signUp/firebase';
 import './Products.css';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const Products = () => {
   const [products, setProducts] = useState([]);
@@ -16,25 +16,27 @@ const Products = () => {
   const [categoryForm] = Form.useForm();
   const [organizationID, setOrganizationID] = useState('');
   const [activeTabKey, setActiveTabKey] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const fetchUserData = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const userDocRef = doc(db, 'owner-users', user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        setOrganizationID(userDocSnap.data().organizationID);
+      }
+    }
+  };
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const userDocRef = doc(db, 'owner-users', user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          setOrganizationID(userDocSnap.data().organizationID);
-        }
-      }
-    };
-
     fetchUserData();
   }, []);
 
   useEffect(() => {
     const fetchProductsAndCategories = async () => {
       if (organizationID) {
+        setLoading(true);
         const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
         const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(productsData);
@@ -45,6 +47,7 @@ const Products = () => {
         if (categoriesData.length > 0) {
           setActiveTabKey(categoriesData[0].name); // Select the first category by default
         }
+        setLoading(false);
       }
     };
 
@@ -79,6 +82,9 @@ const Products = () => {
 
   const renderProducts = (category) => {
     const filteredProducts = products.filter(product => product.category === category);
+    if (filteredProducts.length === 0) {
+      return <Text type="secondary">Продукты еще не добавлены</Text>; // Display message if no products are available
+    }
     return (
       <Row gutter={[16, 16]}>
         {filteredProducts.map(product => (
@@ -105,13 +111,19 @@ const Products = () => {
           Добавить категорию
         </Button>
       </Space>
-      <Tabs activeKey={activeTabKey} onChange={setActiveTabKey}>
-        {categories.map(category => (
-          <Tabs.TabPane tab={category.name} key={category.name}>
-            {renderProducts(category.name)}
-          </Tabs.TabPane>
-        ))}
-      </Tabs>
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+          <Spin size="large" />
+        </div>
+      ) : (
+        <Tabs activeKey={activeTabKey} onChange={setActiveTabKey}>
+          {categories.slice().reverse().map(category => (
+            <Tabs.TabPane tab={category.name} key={category.name}>
+              {renderProducts(category.name)}
+            </Tabs.TabPane>
+          ))}
+        </Tabs>
+      )}
 
       <Modal title="Добавить новый продукт" visible={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null}>
         <Form form={form} onFinish={handleAddProduct}>
