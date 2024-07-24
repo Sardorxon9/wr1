@@ -8,6 +8,9 @@ import Dashboard from './components/Dashboard';
 import CreateOrder from './components/order-pages/CreateOrder';
 import OrderList from './components/order-pages/OrderList';
 import Employees from './components/employees/Employees';
+import OwnerPage from './components/Owner';
+import MemberPage from './components/Member';
+
 import './App.css';
 
 export default function App() {
@@ -24,6 +27,8 @@ export default function App() {
           <Route path="order-list" element={<OrderList />} />
           <Route path="employees" element={<Employees />} />
         </Route>
+        <Route path="/ownerpage" element={<OwnerPage />} />
+        <Route path="/memberpage" element={<MemberPage />} />
       </Routes>
     </Router>
   );

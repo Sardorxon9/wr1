@@ -5,7 +5,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import './registrationOwner.css';
 import { auth, db } from "./firebase";
-import {setDoc, doc} from "firebase/firestore";
+import { setDoc, doc, collection } from "firebase/firestore";
 
 const { Title } = Typography;
 
@@ -22,18 +22,23 @@ const RegistrationOwner = () => {
       await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = auth.currentUser;
       if (user) {
-        await setDoc(doc(db, "users-info", user.uid), {
+        const orgRef = doc(db, "organizations", values.organization);
+        const ownerRef = doc(collection(orgRef, "owners"), user.uid);
+
+        await setDoc(orgRef, {
+          organizationName: values.organization,
+        });
+
+        await setDoc(ownerRef, {
           firstName: values.firstName,
           lastName: values.lastName,
           email: values.email,
-          organization: values.organization,
         });
       }
       console.log(user);
       navigate("/");
     } catch (error) {
       console.log(error.message);
-      
     } 
   }
 

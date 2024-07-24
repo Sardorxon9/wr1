@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, Typography } from 'antd';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './loginPage.css';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from './firebase';
-import { useNavigate } from 'react-router-dom';
+import { auth, db } from './firebase';
+import { getDocs, collectionGroup } from 'firebase/firestore';
+import { setPersistence, browserLocalPersistence } from "firebase/auth";
+
+
+setPersistence(auth, browserLocalPersistence)
+  .catch((error) => {
+    console.error("Error setting persistence:", error);
+  });
 
 const { Title } = Typography;
 
@@ -15,9 +22,25 @@ const LoginPage = () => {
 
   const handleLogin = async (values) => {
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
       console.log("Login successful");
-      navigate("/mainpage");
+
+      // Check if the user is an owner
+      const ownersSnapshot = await getDocs(collectionGroup(db, 'owners'));
+      let isOwner = false;
+      
+      ownersSnapshot.forEach(doc => {
+        if (doc.id === user.uid) {
+          isOwner = true;
+        }
+      });
+
+      if (isOwner) {
+        navigate("../ownerpage");
+      } else {
+        navigate("../memberpage");
+      }
     } catch (error) {
       console.log(error.message);
     }

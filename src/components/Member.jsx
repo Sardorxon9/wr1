@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Typography, Avatar, Space, Button, theme } from 'antd';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { auth, db } from '../login-signUp/firebase';
+import { auth, db } from './login-signUp/firebase';
 import { getDocs, collection, query, where } from "firebase/firestore";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
@@ -14,12 +14,12 @@ import {
   MenuFoldOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
-import '../main-page/mainPage.css';
+import './main-page/mainPage.css';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
-const MainPage = () => {
+const MemberPage = () => {
   const [userDetails, setUserDetails] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
@@ -28,37 +28,17 @@ const MainPage = () => {
     try {
       const organizationsRef = collection(db, "organizations");
       const organizationsSnapshot = await getDocs(organizationsRef);
-      let userData = null;
 
-      for (const orgDoc of organizationsSnapshot.docs) {
-        const ownersRef = collection(orgDoc.ref, "owners");
+      organizationsSnapshot.forEach(async (orgDoc) => {
+        const ownersRef = collection(orgDoc.ref, "members");
         const ownerQuery = query(ownersRef, where("email", "==", user.email));
         const ownerSnapshot = await getDocs(ownerQuery);
-
+        
         ownerSnapshot.forEach((ownerDoc) => {
-          userData = { ...ownerDoc.data(), role: 'owner' , organizationName: orgDoc.data().organizationName};
-          setUserDetails(userData);
+          setUserDetails(ownerDoc.data());
+          console.log(ownerDoc.data());
         });
-
-        if (userData) break;
-
-        const membersRef = collection(orgDoc.ref, "members");
-        const memberQuery = query(membersRef, where("email", "==", user.email));
-        const memberSnapshot = await getDocs(memberQuery);
-
-        memberSnapshot.forEach((memberDoc) => {
-          userData = { ...memberDoc.data(), role: 'member', organizationName: orgDoc.data().organizationName };
-          setUserDetails(userData);
-        });
-
-        if (userData) break;
-      }
-
-      if (!userData) {
-        // If user data not found in both collections, sign out and redirect to login
-        await signOut(auth);
-        navigate("/");
-      }
+      });
     } catch (error) {
       console.error("Error fetching user data: ", error);
     }
@@ -154,7 +134,7 @@ const MainPage = () => {
               <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
               <Space direction="vertical" size={0} className="user-info" style={{ marginLeft: '10px' }}>
                 <Text className="user-name" strong>{userDetails?.firstName}</Text>
-                <Text className="user-role">{userDetails?.role}</Text>
+                <Text className="user-role">Member</Text>
               </Space>
             </div>
           </div>
@@ -175,4 +155,4 @@ const MainPage = () => {
   );
 };
 
-export default MainPage;
+export default MemberPage;
