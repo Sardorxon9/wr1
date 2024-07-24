@@ -2,8 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-
+import { addDoc, collection, getFirestore, serverTimestamp } from "firebase/firestore";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -25,5 +24,21 @@ const analytics = getAnalytics(app);
 
 export const auth = getAuth();
 export const db = getFirestore(app);
-export default app;
 
+// Function to create a new organization document
+export const createOrganization = async (ownerId, organizationData) => {
+  try {
+    const organizationRef = collection(db, "organizations");
+    const newOrganization = await addDoc(organizationRef, {
+      ...organizationData,
+      ownerId,
+      createdAt: serverTimestamp(), // Add timestamp for creation
+    });
+    console.log("Organization created with ID:", newOrganization.id);
+    return newOrganization.id; // Return the generated organization ID
+  } catch (error) {
+    console.error("Error creating organization:", error);
+  }
+};
+
+export default app;

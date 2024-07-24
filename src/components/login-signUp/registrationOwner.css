@@ -1,68 +1,45 @@
-html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-}
-
 .main-container {
     display: flex;
-    width: 100%;
     height: 100vh;
-}
-
-.left-container, .right-container {
+  }
+  
+  .left-container {
     flex: 1;
-    display: flex;
-}
-
-.left-container {
-    background-color: rgb(255, 255, 255);
-    justify-content: center;
-    align-items: center;
-}
-
-.right-container {
-    background-color: rgb(183, 218, 253);
-}
-
-.content-container {
+    background-color: #ffffff;
     display: flex;
     justify-content: center;
     align-items: center;
+  }
+  
+  .right-container {
+    flex: 1;
+    background-color: #b7dafd;
+  }
+  
+  .content-container {
     width: 100%;
-    padding-top: 50px; /* Add top padding to move the content down */
-}
-
-.signup-container {
-    width: 50%;
-    white-space: nowrap;
-    position: relative;
-}
-
-.header-container {
+    max-width: 400px;
+  }
+  
+  .signup-container {
+    padding: 20px;
+  }
+  
+  .header-container {
     display: flex;
     align-items: center;
-    justify-content: center;
-    margin-bottom: 30px; /* Adds white space between header and form */
-    position: relative;
-}
-
-.back-link {
-    color: gray; /* Set the color of the arrow icon to gray */
-    position: absolute;
-    left: 0;
-    top: 50%; /* Vertically center the back link */
-    transform: translateY(-50%); /* Adjust for proper vertical centering */
-}
-
-.signup-text {
-    font-family: 'Roboto', sans-serif; /* Customize the font family */
-    font-weight: 700; /* Customize the font weight */
-    font-size: 24px; /* Customize the font size */
-    margin: 0; /* Remove default margin */
-}
-
-.signup-button {
+    margin-bottom: 20px;
+  }
+  
+  .back-link {
+    margin-right: 10px;
+  }
+  
+  .signup-text {
+    margin: 0;
+  }
+  
+  .signup-button {
     width: 100%;
-}
+  }
+  

@@ -9,7 +9,7 @@ import {
   MenuFoldOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
-import { Layout, Menu, Typography, Avatar, Space, Button, theme } from 'antd';
+import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification,theme } from 'antd';
 import { Link, Outlet } from 'react-router-dom';
 import './mainPage.css';
 import { auth, db } from '../login-signUp/firebase';
@@ -20,17 +20,41 @@ const { Text } = Typography;
 
 const MainPage = () => {
   const [userDetails, setUserDetails] = useState(null);
+  const [organizationName, setOrganizationName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
+  const {
+    token: { colorBgContainer, borderRadiusLG },
+  } = theme.useToken();
 
   const fetchUserData = async () => {
     auth.onAuthStateChanged(async (user) => {
-      console.log(user)
-      const docRef = doc(db, "users-info", user.uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setUserDetails(docSnap.data());
-        console.log(1, docSnap.data().email);
-      } else {
-        console.log("No logged in user");
+      if (user) {
+        try {
+          const userDocRef = doc(db, "owner-users", user.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            setUserDetails(userData);
+
+            const organizationDocRef = doc(db, "organizations", userData.organizationID);
+            const organizationDocSnap = await getDoc(organizationDocRef);
+            if (organizationDocSnap.exists()) {
+              setOrganizationName(organizationDocSnap.data().name);
+            } else {
+              console.log("No such organization!");
+            }
+          } else {
+            console.log("No such user!");
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          notification.error({
+            message: 'Ошибка',
+            description: 'Не удалось загрузить данные пользователя.',
+          });
+        }
+        setLoading(false);
       }
     });
   };
@@ -38,11 +62,6 @@ const MainPage = () => {
   useEffect(() => {
     fetchUserData();
   }, []);
-
-  const [collapsed, setCollapsed] = useState(false);
-  const {
-    token: { colorBgContainer, borderRadiusLG },
-  } = theme.useToken();
 
   const menuItems = [
     {
@@ -76,7 +95,7 @@ const MainPage = () => {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider trigger={null} collapsible collapsed={collapsed}>
         <div className="whiteray-logo">
-          {collapsed ? 'W' : 'WhiteRay'}
+          {collapsed ? 'W' : organizationName || 'WhiteRay'}
         </div>
         <Menu
           theme="dark"
@@ -108,7 +127,7 @@ const MainPage = () => {
             <div className="userdata" style={{ display: 'flex', alignItems: 'center' }}>
               <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
               <Space direction="vertical" size={0} className="user-info" style={{ marginLeft: '10px' }}>
-                <Text className="user-name" strong>{userDetails?.firstName}</Text>
+                <Text className="user-name" strong>{userDetails?.fullName}</Text>
                 <Text className="user-role">Администратор</Text>
               </Space>
             </div>
@@ -123,7 +142,13 @@ const MainPage = () => {
             borderRadius: borderRadiusLG,
           }}
         >
-          <Outlet context={{ userDetails }} />
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+              <Spin />
+            </div>
+          ) : (
+            <Outlet context={{ userDetails }} />
+          )}
         </Content>
       </Layout>
     </Layout>
