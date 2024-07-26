@@ -3,11 +3,8 @@ import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { addDoc, collection, getFirestore, serverTimestamp } from "firebase/firestore";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAywQYhYBWSeLfq_o6ZnLHdwKzm5ASqHsA",
   authDomain: "white-ray-app.firebaseapp.com",
@@ -22,7 +19,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 
-export const auth = getAuth();
+export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 // Function to create a new organization document
