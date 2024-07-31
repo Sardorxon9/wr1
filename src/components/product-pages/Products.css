@@ -1,0 +1,36 @@
+.products-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  
+  .ant-card {
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  @media (min-width: 576px) {
+    .ant-card {
+      width: 100%;
+    }
+  }
+  
+  @media (min-width: 768px) {
+    .ant-card {
+      width: 100%;
+    }
+  }
+  
+  @media (min-width: 992px) {
+    .ant-card {
+      width: 100%;
+    }
+  }
+  
+  @media (min-width: 1200px) {
+    .ant-card {
+      width: 100%;
+    }
+  }
+  

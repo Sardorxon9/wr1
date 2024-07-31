@@ -1,0 +1,67 @@
+.employees-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: space-between;
+    padding: 24px 0;
+  }
+  
+  .employee-card {
+    display: flex;
+    align-items: center;
+    width: calc(33.3333% - 16px);
+    padding: 16px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.3s ease-in-out;
+  }
+  
+  .employee-card:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  }
+  
+  .employee-avatar {
+    margin-right: 16px;
+  }
+  
+  .employee-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .employee-name {
+    font-size: 18px;
+    margin-bottom: 4px;
+    margin-top: 8px; /* Shift the name up */
+  }
+  
+  .employee-role {
+    color: #1890ff;
+    margin-bottom: 8px;
+  }
+  
+  .employee-email {
+    color: #68768C;
+  }
+  
+  .employee-pending-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  
+  .employee-pending {
+    color: #faad14;
+    margin-right: 4px;
+  }
+  
+  .employee-pending-icon {
+    color: #faad14;
+    font-size: 20px;
+  }
+
+  
+  :where(.css-dev-only-do-not-override-98ntnt).ant-card .ant-card-body {
+    padding: 9px;
+    border-radius: 0 0 8px 8px;
+  }

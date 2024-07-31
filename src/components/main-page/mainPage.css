@@ -1,0 +1,29 @@
+.whiteray-logo {
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  padding: 16px;
+  text-align: center;
+}
+
+.userdata {
+  flex: 1 1 0%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0px 16px;
+  line-height: normal;
+}
+
+.user-info {
+  margin-left: 10px;
+}
+
+.user-name {
+  font-weight: bold;
+}
+
+.user-role {
+  font-size: 14px;
+  color: #1890ff;
+}

@@ -1,0 +1,45 @@
+.main-container {
+    display: flex;
+    height: 100vh;
+  }
+  
+  .left-container {
+    flex: 1;
+    background-color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .right-container {
+    flex: 1;
+    background-color: #b7dafd;
+  }
+  
+  .content-container {
+    width: 100%;
+    max-width: 400px;
+  }
+  
+  .signup-container {
+    padding: 20px;
+  }
+  
+  .header-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .back-link {
+    margin-right: 10px;
+  }
+  
+  .signup-text {
+    margin: 0;
+  }
+  
+  .signup-button {
+    width: 100%;
+  }
+  
