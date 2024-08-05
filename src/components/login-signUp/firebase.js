@@ -1,8 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-import { addDoc, collection, getFirestore, serverTimestamp } from "firebase/firestore";
+import { getFirestore, collection, addDoc, doc, setDoc } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -17,24 +16,55 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
-// Function to create a new organization document
+// Function to create a new organization
 export const createOrganization = async (ownerId, organizationData) => {
   try {
-    const organizationRef = collection(db, "organizations");
-    const newOrganization = await addDoc(organizationRef, {
+    // Create a new document in the "organizations" collection
+    const orgRef = await addDoc(collection(db, "organizations"), {
       ...organizationData,
       ownerId,
-      createdAt: serverTimestamp(), // Add timestamp for creation
+      createdAt: new Date(), // Optionally, use serverTimestamp()
     });
-    console.log("Organization created with ID:", newOrganization.id);
-    return newOrganization.id; // Return the generated organization ID
+
+    // Add the generated ID as a field in the document
+    await setDoc(doc(db, "organizations", orgRef.id), {
+      ...organizationData,
+      ownerId,
+      createdAt: new Date(),
+      organizationID: orgRef.id, // Store the generated ID
+    });
+
+    console.log("Organization created with ID:", orgRef.id);
+    return orgRef.id; // Return the generated organization ID
   } catch (error) {
     console.error("Error creating organization:", error);
+  }
+};
+
+// Function to invite a user
+export const inviteUser = async (email, organizationID) => {
+  try {
+    // Add to invited-users collection
+    await addDoc(collection(db, "invited-users"), {
+      email,
+      organizationID,
+      status: "pending",
+    });
+
+    // Add to organization's members with status "pending"
+    const organizationRef = doc(db, "organizations", organizationID);
+    await addDoc(collection(organizationRef, "members"), {
+      email,
+      status: "pending",
+      organizationID // Ensure organizationID is stored here as well
+    });
+
+    console.log("User invited and added to pending members.");
+  } catch (error) {
+    console.error("Error inviting user:", error);
   }
 };
 

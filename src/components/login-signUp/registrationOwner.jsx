@@ -32,6 +32,7 @@ const RegistrationOwner = () => {
 
         const orgID = await createOrganization(user.uid, organizationData);
 
+        // Add necessary subcollections or documents
         const subCollections = ['members', 'products', 'product-categories', 'orders', 'business-details', 'customers', 'inventory'];
         subCollections.forEach(async subCol => {
           const subColRef = collection(db, `organizations/${orgID}/${subCol}`);
@@ -125,7 +126,15 @@ const RegistrationOwner = () => {
                 <Form.Item
                   label="Повторите пароль"
                   name="confirmPassword"
-                  rules={[{ required: true, message: 'Пожалуйста, повторите ваш пароль!' }]}
+                  dependencies={['password']}
+                  rules={[{ required: true, message: 'Пожалуйста, повторите ваш пароль!' }, ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue('password') === value) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(new Error('Пароли не совпадают!'));
+                    },
+                  })]}
                 >
                   <Input.Password placeholder="Повторите пароль" />
                 </Form.Item>
@@ -146,8 +155,7 @@ const RegistrationOwner = () => {
           </div>
         </div>
       </div>
-      <div className="right-container">
-      </div>
+      <div className="right-container"></div>
     </div>
   );
 };

@@ -1,110 +1,103 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Avatar, Typography, Button, Modal, Input, message, Select, Space, Spin } from 'antd';
-import { ClockCircleOutlined, UserOutlined, CopyOutlined } from '@ant-design/icons';
-import { auth, db } from '../login-signUp/firebase';
-import { collection, addDoc, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
-import { sendSignInLinkToEmail } from 'firebase/auth';
-import './Employees.css';
+import { Card, Avatar, Typography, Button, Modal, Input, message, Spin } from 'antd';
+import { UserOutlined } from '@ant-design/icons';
+import { db } from '../login-signUp/firebase';
+import { collection, addDoc, getDocs, doc, getDoc } from "firebase/firestore";
+import { useOutletContext } from 'react-router-dom';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 
 const Employees = () => {
+  const { organizationID } = useOutletContext(); // Get organizationID from context
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isResultModalVisible, setIsResultModalVisible] = useState(false);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('member');
   const [loading, setLoading] = useState(false);
-  const [signupLink, setSignupLink] = useState('');
   const [employees, setEmployees] = useState([]);
-  const [organizationID, setOrganizationID] = useState('');
-
-  const fetchUserData = async () => {
-    const user = auth.currentUser;
-    if (user) {
-      const userDocRef = doc(db, 'owner-users', user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        setOrganizationID(userDocSnap.data().organizationID);
-      }
-    }
-  };
-
-  useEffect(() => {
-    fetchUserData();
-  }, []);
-
-  const fetchEmployees = async () => {
-    setLoading(true);
-    const employeesSnapshot = await getDocs(collection(db, `organizations/${organizationID}/employees`));
-    const employeesData = employeesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setEmployees(employeesData);
-    setLoading(false);
-  };
+  const [fetchedOrganizationID, setFetchedOrganizationID] = useState(null);
 
   useEffect(() => {
     if (organizationID) {
-      fetchEmployees();
+      fetchOrganizationData();
+    } else {
+      console.error('Organization ID is not defined');
     }
   }, [organizationID]);
+
+  const fetchOrganizationData = async () => {
+    setLoading(true);
+    try {
+      const organizationDocRef = doc(db, "organizations", organizationID);
+      const organizationDocSnap = await getDoc(organizationDocRef);
+      if (organizationDocSnap.exists()) {
+        const orgData = organizationDocSnap.data();
+        setFetchedOrganizationID(orgData.organizationID); // Set the organizationID
+        fetchEmployees(orgData.organizationID);
+      } else {
+        console.error("No such organization!");
+      }
+    } catch (error) {
+      console.error("Error fetching organization data:", error);
+      message.error("Ошибка при загрузке данных организации.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchEmployees = async (orgID) => {
+    if (!orgID) return;
+
+    try {
+      const membersRef = collection(db, `organizations/${orgID}/members`);
+      const querySnapshot = await getDocs(membersRef);
+      const membersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setEmployees(membersData);
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+      message.error("Ошибка при загрузке сотрудников.");
+    }
+  };
 
   const showModal = () => {
     setIsModalVisible(true);
   };
 
-  const handleInviteMember = async () => {
+  const handleInvite = async () => {
+    if (!email) {
+      message.error('Введите действительный адрес электронной почты.');
+      return;
+    }
+
+    if (!fetchedOrganizationID) {
+      message.error('Организация не определена.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const actionCodeSettings = {
-        url: `${window.location.origin}/register-member?email=${email}&organizationID=${organizationID}`,
-        handleCodeInApp: true,
-        iOS: {
-          bundleId: 'com.example.ios'
-        },
-        android: {
-          packageName: 'com.example.android',
-          installApp: true,
-          minimumVersion: '12'
-        },
-        dynamicLinkDomain: 'your-dynamic-link-domain.page.link'
-      };
-
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-
-      await addDoc(collection(db, `organizations/${organizationID}/employees`), {
+      // Add to the organization's members collection
+      await addDoc(collection(db, `organizations/${fetchedOrganizationID}/members`), {
         email,
-        role,
-        signedUp: false,
+        status: 'pending',
       });
 
-      window.localStorage.setItem('emailForSignIn', email);
+      // Add to the invited-users collection
+      await addDoc(collection(db, "invited-users"), {
+        email,
+        organizationID: fetchedOrganizationID,
+        organizationName: 'Your Organization Name', // Replace with actual organization name
+        status: 'pending',
+      });
 
-      const link = `${window.location.origin}/register-member?email=${email}&organizationID=${organizationID}`;
-      setSignupLink(link);
-
-      message.success('Invitation link was generated!');
+      message.success('Пользователь приглашен.');
       setIsModalVisible(false);
-      setIsResultModalVisible(true);
+      setEmail('');
+      fetchEmployees(fetchedOrganizationID);
     } catch (error) {
-      message.error('Error sending invitation: ' + error.message);
+      console.error("Error inviting user:", error);
+      message.error("Ошибка при приглашении пользователя.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(signupLink);
-    message.success('Signup link copied to clipboard!');
-  };
-
-  const handleCancel = () => {
-    setIsModalVisible(false);
-    setEmail('');
-    setRole('member');
-  };
-
-  const handleResultModalClose = () => {
-    setIsResultModalVisible(false);
-    setSignupLink('');
   };
 
   return (
@@ -114,67 +107,35 @@ const Employees = () => {
         {loading ? (
           <Spin size="large" />
         ) : (
-          employees.map((employee, index) => (
-            <Card key={index} className="employee-card">
+          employees.map((employee) => (
+            <Card key={employee.id} className="employee-card">
               <div className="employee-avatar">
                 <Avatar size={64} icon={<UserOutlined />} />
               </div>
               <div className="employee-info">
-                {employee.signedUp ? (
-                  <>
-                    <Text className="employee-name" strong>{employee.name}</Text>
-                    <Text className="employee-role">{employee.role}</Text>
-                    <Text className="employee-email">{employee.email}</Text>
-                  </>
-                ) : (
-                  <>
-                    <div className="employee-pending-info">
-                      <Text className="employee-pending" strong>Pending-for signup</Text>
-                      <ClockCircleOutlined className="employee-pending-icon" />
-                    </div>
-                    <Text className="employee-role">{employee.role}</Text>
-                    <Text className="employee-email">{employee.email}</Text>
-                  </>
-                )}
+                <Text className="employee-email">{employee.email}</Text>
+                <Text className="employee-status">
+                  Статус: {employee.status === 'pending' ? 'Ожидает' : 'Активный'}
+                </Text>
               </div>
             </Card>
           ))
         )}
       </div>
-      <Button type="primary" onClick={showModal}>Invite member</Button>
+      <Button type="primary" onClick={showModal}>Пригласить пользователя</Button>
       <Modal
-        title="Invite member"
+        title="Пригласить пользователя"
         visible={isModalVisible}
-        onOk={handleInviteMember}
-        onCancel={handleCancel}
+        onOk={handleInvite}
+        onCancel={() => setIsModalVisible(false)}
         okText="Пригласить"
         cancelText="Отменить"
       >
         <Input
-          placeholder="Enter email"
+          placeholder="Введите email"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
         />
-        <Select defaultValue="member" style={{ width: '100%', marginTop: 16 }} onChange={value => setRole(value)}>
-          <Option value="admin">Admin</Option>
-          <Option value="member">Member</Option>
-        </Select>
-      </Modal>
-      <Modal
-        title="Invite member"
-        visible={isResultModalVisible}
-        onCancel={handleResultModalClose}
-        footer={[
-          <Button key="close" onClick={handleResultModalClose}>
-            Close
-          </Button>,
-        ]}
-      >
-        <p>Пользователь был приглашен. Ссылка для регистрации отправлена на указанный email.</p>
-        <Space direction="horizontal" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Text>{signupLink}</Text>
-          <Button icon={<CopyOutlined />} onClick={handleCopyLink} />
-        </Space>
       </Modal>
     </div>
   );
