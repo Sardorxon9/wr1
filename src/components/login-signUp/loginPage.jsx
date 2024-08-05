@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Typography, Card, Row, Col, message } from 'antd';
+import { Form, Input, Button, Typography, Row, Col, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from './firebase';
@@ -47,12 +47,12 @@ const LoginPage = () => {
 
         if (!isMember) {
           console.error("No such user in owner-users or members");
-          message.error("No such user found.");
+          message.error("Пользователь не найден.");
         }
       }
     } catch (error) {
       console.error("Login error:", error);
-      message.error("Login failed.");
+      message.error("Ошибка при входе.");
     }
   };
 
@@ -107,7 +107,7 @@ const LoginPage = () => {
                 </Form.Item>
               </Form>
               <div className="button-text">
-                <Button type="link" onClick={() => setShowOptions(true)} className="registration-button">
+                <Button type="link" onClick={() => navigate('/signup-options')} className="registration-button">
                   Регистрация
                 </Button>
               </div>

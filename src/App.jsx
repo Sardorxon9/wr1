@@ -10,6 +10,7 @@ import CreateOrder from './components/order-pages/CreateOrder';
 import OrderList from './components/order-pages/OrderList';
 import Employees from './components/employees/Employees';
 import Products from './components/product-pages/Products';
+import SignupPage from './components/login-signUp/signupPage';
 import './App.css';
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<LoginPage />} />
+        <Route path="/signup-options" element={<SignupPage />} />
         <Route path="/register" element={<RegistrationOwner />} />
         <Route path="/register-member" element={<RegistrationMember />} />
         <Route path="/success" element={<SuccessPage />} />
