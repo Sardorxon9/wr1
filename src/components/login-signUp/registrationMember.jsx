@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Form, Input, Button, Typography, Card, message } from 'antd';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { doc, getDoc,setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore'; // Ensure all necessary imports
-import { runTransaction, doc, getDoc, setDoc, updateDoc } from "firebase/firestore"; // Ensure correct imports
+import { collection, query, where, getDocs } from 'firebase/firestore'; // Ensure all necessary imports
+import { runTransaction, doc, getDoc,  updateDoc } from "firebase/firestore"; // Ensure correct imports
 
 const { Title } = Typography;
 

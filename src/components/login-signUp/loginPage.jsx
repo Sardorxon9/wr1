@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Typography, Card, Row, Col } from 'antd';
+import { Form, Input, Button, Typography, Card, Row, Col, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { getDoc, doc } from "firebase/firestore";
+import { getDoc, doc, collection, getDocs } from "firebase/firestore";
 import './loginPage.css';
 
 const { Title } = Typography;
@@ -19,24 +19,40 @@ const LoginPage = () => {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Fetch user data from Firestore
-      const userDocRef = doc(db, "owner-users", user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        const organizationID = userData.organizationID; // Extract organizationID
-
-        if (organizationID) {
-          // Navigate to main page with organizationID
-          navigate("/mainpage", { state: { organizationID } });
-        } else {
-          console.error("No organizationID found in user data");
-        }
+      // Check if the user is an owner
+      const ownerDocRef = doc(db, "owner-users", user.uid);
+      const ownerDocSnap = await getDoc(ownerDocRef);
+      if (ownerDocSnap.exists()) {
+        const ownerData = ownerDocSnap.data();
+        navigate("/mainpage", { state: { organizationID: ownerData.organizationID, role: 'owner' } });
       } else {
-        console.error("No such user!");
+        // User is not an owner, check if they are a member
+        let isMember = false;
+        const organizationsRef = collection(db, "organizations");
+        const orgsSnapshot = await getDocs(organizationsRef);
+        for (const orgDoc of orgsSnapshot.docs) {
+          const orgID = orgDoc.id;
+          const memberDocRef = doc(db, `organizations/${orgID}/members`, user.uid);
+          const memberDocSnap = await getDoc(memberDocRef);
+          
+          if (memberDocSnap.exists()) {
+            const memberData = memberDocSnap.data();
+            if (memberData.role === 'member') {
+              navigate("/mainpage", { state: { organizationID: memberData.organizationID, role: 'member' } });
+              isMember = true;
+              break;
+            }
+          }
+        }
+
+        if (!isMember) {
+          console.error("No such user in owner-users or members");
+          message.error("No such user found.");
+        }
       }
     } catch (error) {
-      console.log("Login error: ", error.message);
+      console.error("Login error:", error);
+      message.error("Login failed.");
     }
   };
 

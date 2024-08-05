@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification, theme } from 'antd';
 import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom';
 import { auth, db } from '../login-signUp/firebase';
-import { getDoc, doc } from "firebase/firestore";
+import { getDoc, doc, collection, getDocs } from "firebase/firestore";
 import {
   DashboardOutlined,
   LogoutOutlined,
@@ -20,11 +20,10 @@ const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
 const MainPage = () => {
-  const location = useLocation();
   const navigate = useNavigate();
   const [userDetails, setUserDetails] = useState(null);
   const [organizationName, setOrganizationName] = useState('');
-  const [organizationID, setOrganizationID] = useState(''); // State for organizationID
+  const [organizationID, setOrganizationID] = useState('');
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const {
@@ -36,24 +35,27 @@ const MainPage = () => {
       fetchUserData();
     } else {
       console.error('No user found');
-      navigate("/error"); // Example redirect to an error page
+      navigate("/error");
     }
   }, []);
 
   const fetchUserData = async () => {
     try {
-      const userDocRef = doc(db, "owner-users", auth.currentUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
+      const userUid = auth.currentUser.uid;
+
+      // Check if the user is an owner
+      const ownerDocRef = doc(db, "owner-users", userUid);
+      const ownerDocSnap = await getDoc(ownerDocRef);
+      if (ownerDocSnap.exists()) {
+        const userData = ownerDocSnap.data();
         setUserDetails(userData);
 
         if (userData.organizationID) {
+          setOrganizationID(userData.organizationID);
           const organizationDocRef = doc(db, "organizations", userData.organizationID);
           const organizationDocSnap = await getDoc(organizationDocRef);
           if (organizationDocSnap.exists()) {
             setOrganizationName(organizationDocSnap.data().name);
-            setOrganizationID(organizationDocSnap.data().organizationID); // Set organizationID
           } else {
             console.log("No such organization!");
           }
@@ -61,7 +63,28 @@ const MainPage = () => {
           console.error("No organizationID found for user");
         }
       } else {
-        console.log("No such user!");
+        // User is not an owner, check if they are a member
+        let isMember = false;
+        const organizationsRef = collection(db, "organizations");
+        const orgsSnapshot = await getDocs(organizationsRef);
+        for (const orgDoc of orgsSnapshot.docs) {
+          const orgID = orgDoc.id;
+          const memberDocRef = doc(db, `organizations/${orgID}/members`, userUid);
+          const memberDocSnap = await getDoc(memberDocRef);
+
+          if (memberDocSnap.exists()) {
+            const memberData = memberDocSnap.data();
+            setUserDetails(memberData);
+            setOrganizationID(memberData.organizationID);
+            setOrganizationName(orgDoc.data().name);
+            isMember = true;
+            break;
+          }
+        }
+
+        if (!isMember) {
+          console.error("No such user in owner-users or members");
+        }
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -77,7 +100,7 @@ const MainPage = () => {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider trigger={null} collapsible collapsed={collapsed}>
         <div className="whiteray-logo">
-          {collapsed ? 'W' : organizationName || 'WhiteRay'}
+          {collapsed ? '..' : organizationName || 'Loading...'}
         </div>
         <Menu
           theme="dark"
@@ -141,7 +164,7 @@ const MainPage = () => {
               <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
               <Space direction="vertical" size={0} className="user-info" style={{ marginLeft: '10px' }}>
                 <Text className="user-name" strong>{userDetails?.fullName}</Text>
-                <Text className="user-role">Администратор</Text>
+                <Text className="user-role">{userDetails?.role === 'owner' ? 'Администратор' : 'Участник'}</Text>
               </Space>
             </div>
           </div>

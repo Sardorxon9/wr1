@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Avatar, Typography, Button, Modal, Input, message, Spin } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
 import { db } from '../login-signUp/firebase';
-import { collection, addDoc, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import { useOutletContext } from 'react-router-dom';
 
 const { Title, Text } = Typography;
@@ -74,14 +74,20 @@ const Employees = () => {
 
     setLoading(true);
     try {
+      // Generate a unique ID for the new member
+      const newMemberRef = doc(collection(db, "invited-users"));
+      const newMemberID = newMemberRef.id;
+
       // Add to the organization's members collection
-      await addDoc(collection(db, `organizations/${fetchedOrganizationID}/members`), {
+      await setDoc(doc(db, `organizations/${fetchedOrganizationID}/members`, newMemberID), {
         email,
         status: 'pending',
+        role: 'member',
+        organizationID: fetchedOrganizationID,
       });
 
       // Add to the invited-users collection
-      await addDoc(collection(db, "invited-users"), {
+      await setDoc(newMemberRef, {
         email,
         organizationID: fetchedOrganizationID,
         organizationName: 'Your Organization Name', // Replace with actual organization name

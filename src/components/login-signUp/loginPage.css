@@ -1,105 +1,50 @@
-html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-}
-
 .main-container {
     display: flex;
-    flex-direction: column;
-    width: 100%;
     height: 100vh;
-}
-
-.left-container, .right-container {
+  }
+  
+  .left-container {
     flex: 1;
     display: flex;
-    justify-content: center;
     align-items: center;
-}
-
-.left-container {
-    background-color: rgb(255, 255, 255);
-}
-
-.right-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background: url('D:/wr1/src/assets/img-assets/landing_1.jpg') no-repeat center center;
+    justify-content: center;
+    background-color: #f0f2f5;
+  }
+  
+  .right-container {
+    flex: 1;
+    background-image: url('/path/to/your/image.jpg');
     background-size: cover;
-}
-
-.login-container {
-    width: 80%;
+  }
+  
+  .login-container {
     max-width: 400px;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    z-index: 1;
-    background: rgba(255, 255, 255, 0.9); /* Adjust transparency as needed */
-    padding: 20px;
-    border-radius: 10px;
-}
-
-.login-info {
-}
-
-.login-username {
-    margin-bottom: 30px;
-}
-
-.login-password {
-}
-
-.singin-button {
-    padding-bottom: 65px;
-}
-
-.login-text {
-    text-align: center;
-}
-
-.button-text {
-    text-align: center;
-    padding-bottom: 6%;
-}
-
-.login-button {
     width: 100%;
-    margin-top: 30px;
-    margin-bottom: 20px;
-}
-
-.registration-button {
-    width: fit-content;
-}
-
-@media (min-width: 768px) {
-    .main-container {
-        flex-direction: row;
-    }
-
-    .left-container {
-        justify-content: center;
-    }
-
-    .right-container {
-        justify-content: center;
-    }
-
-    .login-container {
-        width: 50%;
-    }
-}
-
-@media (max-width: 767px) {
-    .login-container {
-        width: 90%;
-    }
-
-    .ant-input {
-        font-size: 16px;
-    }
-}
+    padding: 40px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .signup-options {
+    margin-top: 20px;
+  }
+  
+  .signup-card {
+    transition: transform 0.3s, box-shadow 0.3s;
+    border-radius: 8px;
+  }
+  
+  .signup-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2);
+  }
+  
+  .button-text {
+    margin-top: 20px;
+  }
+  
+  .registration-button {
+    color: #1890ff;
+  }
+  
