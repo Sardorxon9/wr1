@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Typography } from 'antd';
+import { Button, Typography, Result } from 'antd';
 import { useNavigate } from 'react-router-dom';
 
 const { Title } = Typography;
@@ -13,7 +13,13 @@ const ErrorPage = () => {
 
   return (
     <div style={{ textAlign: 'center', padding: '50px' }}>
-      <Title level={2}>Что-то пошло не так</Title>
+       <Result
+    status="500"
+    title="Ошибка"
+    subTitle="Что-то пошло не так.."
+   
+  />
+      
       <Button type="primary" onClick={handleBackToDashboard}>
         Вернуться на главную
       </Button>

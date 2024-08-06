@@ -20,6 +20,7 @@ const CreateOrder = () => {
   const [organizationID, setOrganizationID] = useState('');
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [cascaderOptions, setCascaderOptions] = useState([]);
 
   const fetchUserData = async () => {
@@ -40,7 +41,7 @@ const CreateOrder = () => {
   }, []);
 
   useEffect(() => {
-    const fetchProductsAndCategories = async () => {
+    const fetchProductsCategoriesCustomers = async () => {
       if (organizationID) {
         const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
         const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -60,13 +61,25 @@ const CreateOrder = () => {
         }));
 
         setCascaderOptions(options);
+
+        const customersSnapshot = await getDocs(collection(db, `organizations/${organizationID}/customers`));
+        const customersData = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setCustomers(customersData);
       }
     };
 
-    fetchProductsAndCategories();
+    fetchProductsCategoriesCustomers();
   }, [organizationID]);
 
   const onValuesChange = (_, allValues) => {
+    const selectedCustomer = customers.find(customer => customer.companyName === allValues.client);
+    if (selectedCustomer) {
+      // Set product and price based on selected customer
+      form.setFieldsValue({
+        product: selectedCustomer.product ? selectedCustomer.product.split(' > ') : [],
+        price: selectedCustomer.price || 0,
+      });
+    }
     setOrderPreview(allValues);
   };
 
@@ -118,9 +131,11 @@ const CreateOrder = () => {
             </Form.Item>
             <Form.Item name="client" label="Клиент" rules={[{ required: true, message: 'Пожалуйста, выберите клиента!' }]}>
               <Select placeholder="Выберите клиента">
-                <Select.Option value="Les Ailes">Les Ailes</Select.Option>
-                <Select.Option value="Chopar">Chopar</Select.Option>
-                <Select.Option value="Big Burger">Big Burger</Select.Option>
+                {customers.map(customer => (
+                  <Select.Option key={customer.id} value={customer.companyName}>
+                    {customer.companyName}
+                  </Select.Option>
+                ))}
               </Select>
             </Form.Item>
             <Form.Item name="product" label="Продукт" rules={[{ required: true, message: 'Пожалуйста, выберите продукт!' }]}>

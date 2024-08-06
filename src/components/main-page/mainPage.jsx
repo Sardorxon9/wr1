@@ -155,6 +155,11 @@ const MainPage = () => {
               icon: <LogoutOutlined />,
               label: <Link to="/">Log Out</Link>,
             },
+            {
+              key: '7', // Ensure this key is unique
+              icon: <UserOutlined />,
+              label: <Link to="/mainpage/customers" state={{ organizationID }}>Клиенты</Link>,
+            },
           ]}
         />
       </Sider>
