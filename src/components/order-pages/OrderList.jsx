@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { EditableProTable } from '@ant-design/pro-components';
-import { Select, message, Typography, Badge, Radio, Card, Switch } from 'antd';
-import { UnorderedListOutlined, AppstoreOutlined, CodeSandboxOutlined, CarOutlined } from '@ant-design/icons';
+import { Select, message, Typography, Badge, Radio, Card, Switch, Tabs, Spin } from 'antd';
+import { UnorderedListOutlined, AppstoreOutlined, CodeSandboxOutlined, CarOutlined, LoadingOutlined } from '@ant-design/icons';
 import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
-import { auth, db } from '../login-signUp/firebase'; // Adjust the import path according to your project structure
+import { auth, db } from '../login-signUp/firebase';
 import './OrderList.css';
 
 const { Title, Text } = Typography;
+const { TabPane } = Tabs;
 
 const statusOptions = [
   { label: 'В процессе', value: 'in-progress', color: 'orange', backgroundColor: '#E6F4FF', textColor: '#355A77', icon: <CarOutlined /> },
@@ -18,7 +19,9 @@ const OrderList = () => {
   const [editableKeys, setEditableRowKeys] = useState([]);
   const [dataSource, setDataSource] = useState([]);
   const [viewMode, setViewMode] = useState('table');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [organizationID, setOrganizationID] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -40,34 +43,17 @@ const OrderList = () => {
   useEffect(() => {
     const fetchOrders = async () => {
       if (organizationID) {
+        setLoading(true);
         const querySnapshot = await getDocs(collection(db, `organizations/${organizationID}/orders`));
         const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setDataSource(orders);
         setEditableRowKeys(orders.map(order => order.id));
+        setLoading(false);
       }
     };
 
     fetchOrders();
   }, [organizationID]);
-
-  const handleSave = async (row) => {
-    try {
-      const newData = [...dataSource];
-      const index = newData.findIndex((item) => row.id === item.id);
-      if (index > -1) {
-        const item = newData[index];
-        newData.splice(index, 1, { ...item, ...row });
-        setDataSource(newData);
-
-        const orderRef = doc(db, `organizations/${organizationID}/orders`, row.id);
-        await updateDoc(orderRef, row);
-
-        message.success('Данные успешно сохранены!');
-      }
-    } catch (error) {
-      message.error('Ошибка сохранения данных: ' + error.message);
-    }
-  };
 
   const handleStatusChange = async (id, newStatus) => {
     try {
@@ -76,73 +62,101 @@ const OrderList = () => {
 
       const orderRef = doc(db, `organizations/${organizationID}/orders`, id);
       await updateDoc(orderRef, { status: newStatus });
+      message.success('Статус успешно обновлен!');
     } catch (error) {
       message.error('Ошибка обновления статуса: ' + error.message);
     }
   };
 
-  const renderCardView = () => (
-    <div className="card-container">
-      {dataSource.map(order => (
-        <Card key={order.id} className="order-card">
-          <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>{new Date(order.date.seconds * 1000).toLocaleDateString()}</Text>
-          <Text strong style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{order.client.toUpperCase()}</Text>
-          <Text style={{ display: 'block', marginBottom: 8 }}>{order.product}</Text>
-          <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity} шт</Text>
-          <Text strong style={{ fontSize: 20, fontWeight: 600, display: 'block', marginBottom: 16 }}>{order.price}</Text>
-          <Badge
-            color={statusOptions.find(option => option.value === order.status).backgroundColor}
-            text={(
-              <>
-                {statusOptions.find(option => option.value === order.status).icon}
-                <span style={{ marginLeft: 4 }}>{statusOptions.find(option => option.value === order.status).label}</span>
-              </>
-            )}
-            style={{ backgroundColor: statusOptions.find(option => option.value === order.status).backgroundColor, color: statusOptions.find(option => option.value === order.status).textColor, marginBottom: 16, display: 'block', padding: '5px 10px', borderRadius: '5px' }}
-          />
-          <div className="order-card-switch">
-            <Switch
-              checked={order.status === 'delivered'}
-              onChange={(checked) => handleStatusChange(order.id, checked ? 'delivered' : 'in-progress')}
-              style={{ marginRight: 8 }}
-            />
-            <Text style={{ color: '#68768C' }}>{order.status === 'delivered' ? 'Доставлено' : 'Изменить на : Доставлено'}</Text>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
+  const renderCardView = () => {
+    const filteredOrders = selectedStatus === 'all'
+      ? dataSource
+      : dataSource.filter(order => order.status === selectedStatus);
+    return (
+      <div className="card-container">
+        {filteredOrders.map(order => {
+          const statusOption = statusOptions.find(option => option.value === order.status);
+          return (
+            <Card key={order.id} className="order-card">
+              <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                {new Date(order.date.seconds * 1000).toLocaleDateString('ru-RU')}
+              </Text>
+              <Text strong style={{ fontSize: 18, marginBottom: 4 }}>{order.client}</Text>
+              <Text style={{ display: 'block', marginBottom: 8 }}>{order.product}</Text>
+              <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity} шт</Text>
+              <Text strong style={{ fontSize: 20, marginBottom: 16 }}>{order.price} сум</Text>
+              <Badge
+                color={statusOption.backgroundColor}
+                text={(
+                  <>
+                    {statusOption.icon}
+                    <span style={{ marginLeft: 4 }}>{statusOption.label}</span>
+                  </>
+                )}
+                style={{ backgroundColor: statusOption.backgroundColor, color: statusOption.textColor, marginBottom: 16, display: 'block', padding: '5px 10px', borderRadius: '5px' }}
+              />
+              <div className="order-card-switch">
+                <Switch
+                  checked={order.status === 'delivered'}
+                  onChange={(checked) => handleStatusChange(order.id, checked ? 'delivered' : 'in-progress')}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={{ color: '#68768C' }}>{order.status === 'delivered' ? 'Доставлено' : 'Изменить на : Доставлено'}</Text>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  };
 
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'id',
+      title: 'ДАТА',
+      dataIndex: 'date',
       editable: false,
+      render: (_, record) => {
+        return new Date(record.date.seconds * 1000).toLocaleDateString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      },
     },
     {
-      title: 'Клиент',
+      title: 'КЛИЕНТ',
       dataIndex: 'client',
       editable: false,
     },
     {
-      title: 'Продукт',
+      title: 'ПРОДУКТ',
       dataIndex: 'product',
       editable: false,
+      render: (_, record) => {
+        const [mainCategory, subCategory] = record.product.split(' > ');
+        return (
+          <span>
+            <span style={{ fontWeight: 'bold', color: '#1F2A37' }}>{mainCategory}</span> 
+            {' > '}
+            <span style={{ color: '#6B7280' }}>{subCategory}</span>
+          </span>
+        );
+      },
     },
     {
-      title: 'Количество',
+      title: 'КОЛИЧЕСТВО',
       dataIndex: 'quantity',
       valueType: 'digit',
       editable: false,
     },
     {
-      title: 'Цена',
+      title: 'ЦЕНА',
       dataIndex: 'price',
       valueType: 'text',
       editable: false,
     },
     {
-      title: 'Статус',
+      title: 'СТАТУС',
       dataIndex: 'status',
       valueType: 'select',
       renderFormItem: (_, { record }) => (
@@ -183,6 +197,10 @@ const OrderList = () => {
     },
   ];
 
+  const filteredDataSource = selectedStatus === 'all'
+    ? dataSource
+    : dataSource.filter(order => order.status === selectedStatus);
+
   return (
     <>
       <div className="order-list-header">
@@ -196,17 +214,27 @@ const OrderList = () => {
           </Radio.Button>
         </Radio.Group>
       </div>
-      {viewMode === 'table' ? (
+      <Tabs defaultActiveKey="all" onChange={key => setSelectedStatus(key)}>
+        <TabPane tab="Все" key="all" />
+        {statusOptions.map(option => (
+          <TabPane tab={option.label} key={option.value} />
+        ))}
+      </Tabs>
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+          <Spin indicator={<LoadingOutlined spin />} size="large" />
+        </div>
+      ) : viewMode === 'table' ? (
         <EditableProTable
           rowKey="id"
           headerTitle="Список заказов"
           columns={columns}
-          value={dataSource}
+          value={filteredDataSource}
           onChange={setDataSource}
           editable={{
             type: 'single',
             editableKeys,
-            onSave: handleSave,
+            onSave: handleStatusChange,
             onChange: setEditableRowKeys,
           }}
           recordCreatorProps={false} 

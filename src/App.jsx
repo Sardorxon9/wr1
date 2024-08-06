@@ -11,6 +11,7 @@ import OrderList from './components/order-pages/OrderList';
 import Employees from './components/employees/Employees';
 import Products from './components/product-pages/Products';
 import SignupPage from './components/login-signUp/signupPage';
+import ErrorPage from './components/ErrorPage'; // Import the ErrorPage component
 import './App.css';
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="employees" element={<Employees />} />
           <Route path="products" element={<Products />} />
         </Route>
+        <Route path="/error" element={<ErrorPage />} />
       </Routes>
     </Router>
   );

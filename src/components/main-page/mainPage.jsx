@@ -39,6 +39,20 @@ const MainPage = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (user) {
+        fetchUserData();
+      } else {
+        console.error('No user found');
+        navigate("/error");
+      }
+    });
+    return () => unsubscribe(); // Cleanup the listener on component unmount
+  }, []);
+  
+
+
   const fetchUserData = async () => {
     try {
       const userUid = auth.currentUser.uid;

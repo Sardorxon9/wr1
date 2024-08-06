@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Avatar, Typography, Button, Modal, Input, message, Spin } from 'antd';
-import { UserOutlined } from '@ant-design/icons';
+import { UserOutlined, DeleteOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { db } from '../login-signUp/firebase';
-import { collection, addDoc, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { useOutletContext } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 
 const Employees = () => {
-  const { organizationID } = useOutletContext(); // Get organizationID from context
+  const { organizationID, role } = useOutletContext(); // Get organizationID and role from context
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,7 @@ const Employees = () => {
       const organizationDocSnap = await getDoc(organizationDocRef);
       if (organizationDocSnap.exists()) {
         const orgData = organizationDocSnap.data();
-        setFetchedOrganizationID(orgData.organizationID); // Set the organizationID
+        setFetchedOrganizationID(orgData.organizationID);
         fetchEmployees(orgData.organizationID);
       } else {
         console.error("No such organization!");
@@ -106,29 +106,57 @@ const Employees = () => {
     }
   };
 
+  const handleDeleteEmployee = async (memberId) => {
+    try {
+      await deleteDoc(doc(db, `organizations/${fetchedOrganizationID}/members`, memberId));
+      message.success('Пользователь удален.');
+      setEmployees(employees.filter(employee => employee.id !== memberId));
+    } catch (error) {
+      console.error("Error deleting employee:", error);
+      message.error("Ошибка при удалении пользователя.");
+    }
+  };
+
   return (
     <div>
       <Title level={2}>Сотрудники</Title>
-      <div className="employees-container">
+      <div className="employees-container" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
         {loading ? (
           <Spin size="large" />
         ) : (
           employees.map((employee) => (
-            <Card key={employee.id} className="employee-card">
+            <Card
+              key={employee.id}
+              className="employee-card"
+              actions={
+                role === 'owner' && employee.status !== 'pending' ? [
+                  <DeleteOutlined key="delete" onClick={() => handleDeleteEmployee(employee.id)} />,
+                ] : []
+              }
+              style={{ width: 300, textAlign: 'center' }}
+            >
               <div className="employee-avatar">
-                <Avatar size={64} icon={<UserOutlined />} />
+                <Avatar size={64} icon={employee.status === 'pending' ? <ClockCircleOutlined /> : <UserOutlined />} />
               </div>
-              <div className="employee-info">
-                <Text className="employee-email">{employee.email}</Text>
-                <Text className="employee-status">
-                  Статус: {employee.status === 'pending' ? 'Ожидает' : 'Активный'}
-                </Text>
+              <div className="employee-info" style={{ marginTop: '12px' }}>
+                {employee.status === 'pending' ? (
+                  <Text style={{ fontWeight: 'bold' }}>Ожидает регистрации</Text>
+                ) : (
+                  <>
+  <Text style={{ fontWeight: 'bold', fontSize: '18px' }}>{employee.firstName} </Text>
+  <Text style={{ fontWeight: 'bold', fontSize: '18px' }}>{employee.lastName}</Text>
+  <Text style={{ color: '#1890ff', display: 'block', margin: '5px 0' }}>{employee.role}</Text>
+  <Text style={{ color: '#8c8c8c', display: 'block' }}>{employee.email}</Text>
+</>
+                )}
               </div>
             </Card>
           ))
         )}
       </div>
-      <Button type="primary" onClick={showModal}>Пригласить пользователя</Button>
+      {role === 'owner' && (
+        <Button type="primary" onClick={showModal} style={{ marginTop: '24px' }}>Пригласить пользователя</Button>
+      )}
       <Modal
         title="Пригласить пользователя"
         visible={isModalVisible}
