@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Button, Modal, Form, Input, Select, message, Tabs, Row, Col, Space, Spin, Switch } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
-import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { Card, Typography, Button, Modal, Form, Input, Select, message, Tabs, Row, Col, Space, Spin } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { collection, getDocs, addDoc, doc, getDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../login-signUp/firebase';
 import './Products.css';
 
 const { Title, Text } = Typography;
-const { confirm } = Modal;
 
 const Products = () => {
   const [products, setProducts] = useState([]);
@@ -14,25 +13,12 @@ const Products = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [isManageCategoriesModalVisible, setIsManageCategoriesModalVisible] = useState(false);
-  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [categoryForm] = Form.useForm();
-  const [manageCategoriesForm] = Form.useForm();
   const [organizationID, setOrganizationID] = useState('');
   const [activeTabKey, setActiveTabKey] = useState('');
   const [loading, setLoading] = useState(true);
-  const [currentProduct, setCurrentProduct] = useState(null); // To store product being edited
-
-  const fetchUserData = async () => {
-    const user = auth.currentUser;
-    if (user) {
-      const userDocRef = doc(db, 'owner-users', user.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists()) {
-        setOrganizationID(userDocSnap.data().organizationID);
-      }
-    }
-  };
+  const [categoryChanges, setCategoryChanges] = useState({});
 
   useEffect(() => {
     fetchUserData();
@@ -59,6 +45,17 @@ const Products = () => {
     fetchProductsAndCategories();
   }, [organizationID]);
 
+  const fetchUserData = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const userDocRef = doc(db, 'owner-users', user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        setOrganizationID(userDocSnap.data().organizationID);
+      }
+    }
+  };
+
   const handleAddProduct = async (values) => {
     try {
       await addDoc(collection(db, `organizations/${organizationID}/products`), values);
@@ -71,27 +68,17 @@ const Products = () => {
     }
   };
 
-  const handleEditProduct = async (values) => {
+  const handleAddCategory = async (values) => {
     try {
-      if (currentProduct) {
-        await updateDoc(doc(db, `organizations/${organizationID}/products`, currentProduct.id), values);
-        message.success('Продукт успешно обновлен');
-        setIsEditModalVisible(false);
-        setProducts(products.map(product => (product.id === currentProduct.id ? { ...product, ...values } : product)));
-        setCurrentProduct(null);
-      }
+      const categoryRef = await addDoc(collection(db, `organizations/${organizationID}/product-categories`), values);
+      message.success('Категория успешно добавлена');
+      categoryForm.resetFields();
+      setIsCategoryModalVisible(false);
+      const newCategories = [...categories, { id: categoryRef.id, ...values }];
+      setCategories(newCategories);
+      setActiveTabKey(categoryRef.id); // Select the new category
     } catch (error) {
-      message.error('Ошибка при обновлении продукта: ' + error.message);
-    }
-  };
-
-  const handleDeleteProduct = async (productId) => {
-    try {
-      await deleteDoc(doc(db, `organizations/${organizationID}/products`, productId));
-      message.success('Продукт успешно удален');
-      setProducts(products.filter(product => product.id !== productId));
-    } catch (error) {
-      message.error('Ошибка при удалении продукта: ' + error.message);
+      message.error('Ошибка при добавлении категории: ' + error.message);
     }
   };
 
@@ -100,6 +87,7 @@ const Products = () => {
       await deleteDoc(doc(db, `organizations/${organizationID}/product-categories`, categoryId));
       message.success('Категория успешно удалена');
       setCategories(categories.filter(category => category.id !== categoryId));
+      // Optionally update active tab if needed
     } catch (error) {
       message.error('Ошибка при удалении категории: ' + error.message);
     }
@@ -132,20 +120,6 @@ const Products = () => {
     setIsManageCategoriesModalVisible(false);
   };
 
-  const showDeleteConfirm = (productId) => {
-    confirm({
-      title: 'Вы уверены, что хотите удалить этот продукт?',
-      icon: <ExclamationCircleOutlined />,
-      content: 'Это действие нельзя будет отменить.',
-      okText: 'Да',
-      okType: 'danger',
-      cancelText: 'Нет',
-      onOk() {
-        handleDeleteProduct(productId);
-      },
-    });
-  };
-
   const renderProducts = (category) => {
     const filteredProducts = products.filter(product => product.category === category);
     if (filteredProducts.length === 0) {
@@ -156,33 +130,21 @@ const Products = () => {
         {filteredProducts.map(product => (
           <Col key={product.id} xs={24} sm={12} md={8} lg={6}>
             <Card
-              loading={loading}
+              title={product.title}
               actions={[
-                <EditOutlined key="edit" onClick={() => {
-                  setCurrentProduct(product);
-                  setIsEditModalVisible(true);
-                  form.setFieldsValue(product); // Set form fields with product values
-                }} />,
-                <DeleteOutlined key="delete" onClick={() => showDeleteConfirm(product.id)} />
+                <EditOutlined key="edit" onClick={() => { /* Handle edit */ }} />,
+                <DeleteOutlined key="delete" onClick={() => { /* Handle delete */ }} />,
               ]}
             >
-              <Card.Meta
-                title={product.title}
-                description={
-                  <>
-                    <p>Категория: {product.category}</p>
-                    <p>Цена: {product.price} сум</p>
-                    <p>Сырье: {product.material}</p>
-                  </>
-                }
-              />
+              <p>Категория: {product.category}</p>
+              <p>Цена: {product.price} сум</p>
+              <p>Сырье: {product.material}</p>
             </Card>
           </Col>
         ))}
       </Row>
     );
   };
-  
 
   const categoryItems = categories.map(category => ({
     key: category.id,
@@ -197,7 +159,7 @@ const Products = () => {
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)}>
           Добавить новый продукт
         </Button>
-        <Button type="default" icon={<PlusOutlined />} onClick={() => setIsCategoryModalVisible(true)}>
+        <Button type="default" onClick={() => setIsCategoryModalVisible(true)}>
           Добавить категорию
         </Button>
         <Button type="default" onClick={() => setIsManageCategoriesModalVisible(true)}>
@@ -238,28 +200,13 @@ const Products = () => {
         </Form>
       </Modal>
 
-      <Modal title="Изменить данные продукта" visible={isEditModalVisible} onCancel={() => setIsEditModalVisible(false)} footer={null}>
-        <Form form={form} onFinish={handleEditProduct}>
-          <Form.Item name="title" label="Название" rules={[{ required: true, message: 'Пожалуйста, введите название продукта!' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="category" label="Категория" rules={[{ required: true, message: 'Пожалуйста, выберите категорию!' }]}>
-            <Select>
-              {categories.map(category => (
-                <Select.Option key={category.id} value={category.name}>
-                  {category.name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="price" label="Цена" rules={[{ required: true, message: 'Пожалуйста, введите цену продукта!' }]}>
-            <Input type="number" />
-          </Form.Item>
-          <Form.Item name="material" label="Сырье" rules={[{ required: true, message: 'Пожалуйста, введите сырье продукта!' }]}>
+      <Modal title="Добавить новую категорию" visible={isCategoryModalVisible} onCancel={() => setIsCategoryModalVisible(false)} footer={null}>
+        <Form form={categoryForm} onFinish={handleAddCategory}>
+          <Form.Item name="name" label="Название категории" rules={[{ required: true, message: 'Пожалуйста, введите название категории!' }]}>
             <Input />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit">Сохранить</Button>
+            <Button type="primary" htmlType="submit">Добавить</Button>
           </Form.Item>
         </Form>
       </Modal>
@@ -270,19 +217,24 @@ const Products = () => {
         onCancel={() => setIsManageCategoriesModalVisible(false)}
         footer={null}
       >
-        <Form form={manageCategoriesForm}>
-          {categories.map(category => (
-            <Space key={category.id} style={{ display: 'flex', marginBottom: 8 }} align="start">
-              <Form.Item style={{ flex: 1, marginBottom: 0 }}>
-                <Input defaultValue={category.name} onChange={(e) => handleCategoryNameChange(category.id, e.target.value)} />
-              </Form.Item>
-              <Button type="text" icon={<DeleteOutlined />} onClick={() => handleDeleteCategory(category.id)} danger />
-            </Space>
-          ))}
-        </Form>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button type="default" onClick={() => setIsManageCategoriesModalVisible(false)} style={{ marginRight: 8 }}>Отмена</Button>
-          <Button type="primary" onClick={handleSaveCategoryChanges}>Сохранить</Button>
+        {categories.map(category => (
+          <div key={category.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+            <Input
+              value={categoryChanges[category.id] || category.name}
+              onChange={(e) => handleCategoryNameChange(category.id, e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <Button
+              type="link"
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteCategory(category.id)}
+              style={{ color: 'red' }}
+            />
+          </div>
+        ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+          <Button onClick={() => setIsManageCategoriesModalVisible(false)}>Cancel</Button>
+          <Button type="primary" onClick={handleSaveCategoryChanges}>Save</Button>
         </div>
       </Modal>
     </div>

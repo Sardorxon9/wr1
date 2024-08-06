@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification, theme } from 'antd';
-import { useLocation, Link, Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { auth, db } from '../login-signUp/firebase';
 import { getDoc, doc, collection, getDocs } from "firebase/firestore";
 import {
   DashboardOutlined,
   LogoutOutlined,
   UserOutlined,
-  FormOutlined,
-  MenuUnfoldOutlined,
   OrderedListOutlined,
+  MenuUnfoldOutlined,
   MenuFoldOutlined,
   TeamOutlined,
   AppstoreAddOutlined,
+  FormOutlined
 } from '@ant-design/icons';
 import './mainPage.css';
 
@@ -48,6 +48,7 @@ const MainPage = () => {
       const ownerDocSnap = await getDoc(ownerDocRef);
       if (ownerDocSnap.exists()) {
         const userData = ownerDocSnap.data();
+        userData.role = 'owner'; // Set role as owner
         setUserDetails(userData);
 
         if (userData.organizationID) {
@@ -74,6 +75,7 @@ const MainPage = () => {
 
           if (memberDocSnap.exists()) {
             const memberData = memberDocSnap.data();
+            memberData.role = 'member'; // Set role as member
             setUserDetails(memberData);
             setOrganizationID(memberData.organizationID);
             setOrganizationName(orgDoc.data().name);
@@ -112,11 +114,13 @@ const MainPage = () => {
               icon: <DashboardOutlined />,
               label: <Link to="/mainpage/dashboard" state={{ organizationID }}>Dashboard</Link>,
             },
-            {
-              key: '2',
-              icon: <FormOutlined />,
-              label: <Link to="/mainpage/create-order" state={{ organizationID }}>Добавить заказ</Link>,
-            },
+            ...(userDetails?.role === 'owner' ? [
+              {
+                key: '2',
+                icon: <FormOutlined />,
+                label: <Link to="/mainpage/create-order" state={{ organizationID }}>Добавить заказ</Link>,
+              }
+            ] : []),
             {
               key: '3',
               icon: <OrderedListOutlined />,
@@ -183,7 +187,7 @@ const MainPage = () => {
               <Spin />
             </div>
           ) : (
-            <Outlet context={{ organizationID }} />
+            <Outlet context={{ organizationID, role: userDetails?.role, userDetails }} />
           )}
         </Content>
       </Layout>
