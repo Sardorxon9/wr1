@@ -21,6 +21,7 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   padding: 15px; /* Decreased padding for mobile */
   box-sizing: border-box; /* Include padding in width */
+  position: relative; /* For the absolute positioned delete icon */
 }
 
 .order-card-footer {
@@ -74,4 +75,12 @@
 .ant-table-thead th {
   text-transform: uppercase;
   letter-spacing: 0.02em;
+}
+
+.order-card .anticon-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  cursor: pointer;
+  color: #ff4d4f; /* Red color for the delete icon */
 }

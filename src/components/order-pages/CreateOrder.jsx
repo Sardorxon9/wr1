@@ -74,7 +74,6 @@ const CreateOrder = () => {
   const onValuesChange = (_, allValues) => {
     const selectedCustomer = customers.find(customer => customer.companyName === allValues.client);
     if (selectedCustomer) {
-      // Set product and price based on selected customer
       form.setFieldsValue({
         product: selectedCustomer.product ? selectedCustomer.product.split(' > ') : [],
         price: selectedCustomer.price || 0,
@@ -86,11 +85,13 @@ const CreateOrder = () => {
   const onFinish = async (values) => {
     try {
       const orderId = `order_${new Date().getTime()}`;
+      const quantityMultiplier = 1000;
+      const total = values.quantity * values.price * quantityMultiplier;
       const orderData = {
         ...values,
         date: values.date.toDate(),
         product: values.product ? values.product.join(' > ') : '',
-        total: values.quantity * values.price,
+        total: total,
         email: auth.currentUser.email,
       };
       await setDoc(doc(db, `organizations/${organizationID}/orders`, orderId), orderData);
@@ -106,6 +107,10 @@ const CreateOrder = () => {
         content: 'Ошибка: ' + error.message,
       });
     }
+  };
+
+  const formatNumber = (number) => {
+    return number.toLocaleString('ru-RU');
   };
 
   return (
@@ -162,8 +167,8 @@ const CreateOrder = () => {
               <div><Text strong>Клиент:</Text> {orderPreview.client}</div>
               <div><Text strong>Продукт:</Text> {Array.isArray(orderPreview.product) ? orderPreview.product.join(' > ') : ''}</div>
               <div><Text strong>Количество:</Text> {orderPreview.quantity}</div>
-              <div><Text strong>Цена:</Text> {orderPreview.price} сум</div>
-              <div className="order-total"><Text strong>Итого:</Text> {(orderPreview.quantity * orderPreview.price).toLocaleString()} сум</div>
+              <div><Text strong>Цена:</Text> {formatNumber(orderPreview.price)} сум</div>
+              <div className="order-total"><Text strong>Итого:</Text> {formatNumber(orderPreview.quantity * orderPreview.price * 1000)} сум</div>
             </div>
           </div>
           <div className="form-actions">

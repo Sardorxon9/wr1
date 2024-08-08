@@ -84,7 +84,14 @@ const OrderList = () => {
               <Text strong style={{ fontSize: 18, marginBottom: 4 }}>{order.client}</Text>
               <Text style={{ display: 'block', marginBottom: 8 }}>{order.product}</Text>
               <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity} шт</Text>
-              <Text strong style={{ fontSize: 20, marginBottom: 16 }}>{order.price} сум</Text>
+              <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                <Text strong style={{ fontSize: 24, color: '#000' }}>
+                  {(order.quantity * order.price).toLocaleString('ru-RU')}
+                </Text>
+                <Text style={{ display: 'block', color: '#6B7280', fontSize: 14 }}>
+                  {order.price.toLocaleString('ru-RU')} сум/шт
+                </Text>
+              </div>
               <Badge
                 color={statusOption.backgroundColor}
                 text={(
@@ -154,6 +161,16 @@ const OrderList = () => {
       dataIndex: 'price',
       valueType: 'text',
       editable: false,
+      render: (_, record) => (
+        <div style={{ textAlign: 'left' }}>
+          <Text  style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
+            {(record.quantity * record.price * 1000).toLocaleString('ru-RU')}
+          </Text>
+          <Text style={{ display: 'block', fontWeight: 200, color: '#6B7280', fontSize: 14 }}>
+            {record.price.toLocaleString('ru-RU')} сум/шт
+          </Text>
+        </div>
+      ),
     },
     {
       title: 'СТАТУС',
