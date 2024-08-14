@@ -56,15 +56,16 @@ const MainPage = () => {
   const fetchUserData = async () => {
     try {
       const userUid = auth.currentUser.uid;
-
+  
       // Check if the user is an owner
       const ownerDocRef = doc(db, "owner-users", userUid);
       const ownerDocSnap = await getDoc(ownerDocRef);
+  
       if (ownerDocSnap.exists()) {
         const userData = ownerDocSnap.data();
         userData.role = 'owner'; // Set role as owner
         setUserDetails(userData);
-
+  
         if (userData.organizationID) {
           setOrganizationID(userData.organizationID);
           const organizationDocRef = doc(db, "organizations", userData.organizationID);
@@ -75,31 +76,34 @@ const MainPage = () => {
             console.log("No such organization!");
           }
         } else {
-          console.error("No organizationID found for user");
+          console.error("No organizationID found for owner user");
         }
       } else {
         // User is not an owner, check if they are a member
-        let isMember = false;
         const organizationsRef = collection(db, "organizations");
         const orgsSnapshot = await getDocs(organizationsRef);
+  
+        let isMember = false;
+  
         for (const orgDoc of orgsSnapshot.docs) {
           const orgID = orgDoc.id;
           const memberDocRef = doc(db, `organizations/${orgID}/members`, userUid);
           const memberDocSnap = await getDoc(memberDocRef);
-
+  
           if (memberDocSnap.exists()) {
             const memberData = memberDocSnap.data();
             memberData.role = 'member'; // Set role as member
             setUserDetails(memberData);
-            setOrganizationID(memberData.organizationID);
+            setOrganizationID(orgID); // Set organization ID from the organization where the user is a member
             setOrganizationName(orgDoc.data().name);
             isMember = true;
-            break;
+            break; // Exit the loop once the user is found in any organization
           }
         }
-
+  
         if (!isMember) {
-          console.error("No such user in owner-users or members");
+          console.error("User not found in owner-users or any organization's members");
+          navigate("/error"); // Redirect to error page if user is not found in either collection
         }
       }
     } catch (error) {
@@ -111,6 +115,7 @@ const MainPage = () => {
     }
     setLoading(false);
   };
+  
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

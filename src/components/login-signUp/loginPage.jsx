@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Typography, Row, Col, message, Spin } from 'antd';
+import { Form, Input, Button, Typography, Spin } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, db } from './firebase';
@@ -104,13 +104,13 @@ const LoginPage = () => {
               </Form.Item>
 
               <Form.Item>
-                <Button type="primary" htmlType="submit" className="login-button" loading={loading}>
+                <Button type="primary" htmlType="submit" className="login-button" loading={loading} block>
                   Логин
                 </Button>
               </Form.Item>
             </Form>
             <div className="button-text">
-              <Button type="link" onClick={() => navigate('/signup-options')} className="registration-button">
+              <Button type="link" onClick={() => navigate('/signup-options')} className="registration-button" block>
                 Регистрация
               </Button>
             </div>

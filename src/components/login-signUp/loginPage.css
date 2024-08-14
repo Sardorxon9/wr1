@@ -1,50 +1,81 @@
 .main-container {
-    display: flex;
-    height: 100vh;
+  display: flex;
+  height: 100vh;
+  flex-direction: row; /* Default layout for larger screens */
+}
+
+.left-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f0f2f5;
+}
+
+.right-container {
+  flex: 1;
+  background-image: url('/path/to/your/image.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
+.login-container {
+  max-width: 400px;
+  width: 100%;
+  padding: 40px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+}
+
+.signup-options {
+  margin-top: 20px;
+}
+
+.signup-card {
+  transition: transform 0.3s, box-shadow 0.3s;
+  border-radius: 8px;
+}
+
+.signup-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.button-text {
+  margin-top: 20px;
+}
+
+.registration-button {
+  color: #1890ff;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .main-container {
+    flex-direction: column; /* Stack containers vertically on mobile */
   }
-  
+
   .left-container {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: #f0f2f5;
+    padding: 20px;
   }
-  
+
   .right-container {
-    flex: 1;
-    background-image: url('/path/to/your/image.jpg');
-    background-size: cover;
+    display: none; /* Hide the right image on smaller screens */
   }
-  
+
   .login-container {
-    max-width: 400px;
-    width: 100%;
-    padding: 40px;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    width: 100%; /* Ensure the login container takes full width */
+    box-shadow: none; /* Remove shadow for a simpler mobile look */
   }
-  
-  .signup-options {
-    margin-top: 20px;
-  }
-  
-  .signup-card {
-    transition: transform 0.3s, box-shadow 0.3s;
-    border-radius: 8px;
-  }
-  
-  .signup-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2);
-  }
-  
+
   .button-text {
-    margin-top: 20px;
+    margin-top: 10px; /* Reduce space for mobile */
   }
-  
+
   .registration-button {
-    color: #1890ff;
+    font-size: 14px; /* Adjust font size for better fit */
   }
-  
+}

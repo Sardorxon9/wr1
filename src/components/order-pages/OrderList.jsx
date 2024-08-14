@@ -3,7 +3,8 @@ import { EditableProTable } from '@ant-design/pro-components';
 import { Select, message, Typography, Badge, Radio, Card, Switch, Tabs, Spin } from 'antd';
 import { UnorderedListOutlined, AppstoreOutlined, CodeSandboxOutlined, CarOutlined, LoadingOutlined } from '@ant-design/icons';
 import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
-import { auth, db } from '../login-signUp/firebase';
+import { db } from '../login-signUp/firebase';
+import { useOutletContext } from 'react-router-dom'; // Import this to use the context
 import './OrderList.css';
 
 const { Title, Text } = Typography;
@@ -16,44 +17,35 @@ const statusOptions = [
 ];
 
 const OrderList = () => {
+  const { organizationID, role } = useOutletContext(); // Get organizationID and role from context
   const [editableKeys, setEditableRowKeys] = useState([]);
   const [dataSource, setDataSource] = useState([]);
   const [viewMode, setViewMode] = useState('table');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [organizationID, setOrganizationID] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const userDocRef = doc(db, "owner-users", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          setOrganizationID(userDocSnap.data().organizationID);
-        } else {
-          console.error("No such user!");
-        }
-      }
-    };
-
-    fetchUserData();
-  }, []);
-
-  useEffect(() => {
-    const fetchOrders = async () => {
-      if (organizationID) {
-        setLoading(true);
-        const querySnapshot = await getDocs(collection(db, `organizations/${organizationID}/orders`));
-        const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setDataSource(orders);
-        setEditableRowKeys(orders.map(order => order.id));
-        setLoading(false);
-      }
-    };
-
-    fetchOrders();
+    if (organizationID) {
+      fetchOrders(organizationID);
+    } else {
+      console.error('Organization ID is not defined');
+    }
   }, [organizationID]);
+
+  const fetchOrders = async (orgID) => {
+    setLoading(true);
+    try {
+      const querySnapshot = await getDocs(collection(db, `organizations/${orgID}/orders`));
+      const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setDataSource(orders);
+      setEditableRowKeys(orders.map(order => order.id));
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+      message.error("Ошибка при загрузке заказов.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleStatusChange = async (id, newStatus) => {
     try {
@@ -72,6 +64,7 @@ const OrderList = () => {
     const filteredOrders = selectedStatus === 'all'
       ? dataSource
       : dataSource.filter(order => order.status === selectedStatus);
+  
     return (
       <div className="card-container">
         {filteredOrders.map(order => {
@@ -79,19 +72,23 @@ const OrderList = () => {
           return (
             <Card key={order.id} className="order-card">
               <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                {new Date(order.date.seconds * 1000).toLocaleDateString('ru-RU')}
+                {order.date && order.date.seconds
+                  ? new Date(order.date.seconds * 1000).toLocaleDateString('ru-RU')
+                  : 'Дата не указана'}
               </Text>
-              <Text strong style={{ fontSize: 18, marginBottom: 4 }}>{order.client}</Text>
-              <Text style={{ display: 'block', marginBottom: 8 }}>{order.product}</Text>
-              <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity} шт</Text>
-              <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <Text strong style={{ fontSize: 24, color: '#000' }}>
-                  {(order.quantity * order.price).toLocaleString('ru-RU')}
-                </Text>
-                <Text style={{ display: 'block', color: '#6B7280', fontSize: 14 }}>
-                  {order.price.toLocaleString('ru-RU')} сум/шт
-                </Text>
-              </div>
+              <Text strong style={{ fontSize: 18, marginBottom: 4 }}>{order.client || 'Клиент не указан'}</Text>
+              <Text style={{ display: 'block', marginBottom: 8 }}>{order.product || 'Продукт не указан'}</Text>
+              <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity || '0'} шт</Text>
+              {role === 'owner' && order.price !== undefined && (
+                <div style={{ textAlign: 'left', marginBottom: 16 }}>
+                  <Text strong style={{ fontSize: 18, color: '#000' }}>
+                    {(order.quantity * order.price * 1000).toLocaleString('ru-RU')}
+                  </Text>
+                  <Text style={{ display: 'block', color: '#6B7280', fontSize: 14 }}>
+                    {order.price.toLocaleString('ru-RU')} сум/шт
+                  </Text>
+                </div>
+              )}
               <Badge
                 color={statusOption.backgroundColor}
                 text={(
@@ -104,11 +101,21 @@ const OrderList = () => {
               />
               <div className="order-card-switch">
                 <Switch
-                  checked={order.status === 'delivered'}
-                  onChange={(checked) => handleStatusChange(order.id, checked ? 'delivered' : 'in-progress')}
+                  checked={role === 'owner' ? order.status === 'delivered' : order.status === 'ready'}
+                  onChange={(checked) => {
+                    if (role === 'owner') {
+                      handleStatusChange(order.id, checked ? 'delivered' : 'in-progress');
+                    } else {
+                      handleStatusChange(order.id, checked ? 'ready' : 'in-progress');
+                    }
+                  }}
                   style={{ marginRight: 8 }}
                 />
-                <Text style={{ color: '#68768C' }}>{order.status === 'delivered' ? 'Доставлено' : 'Изменить на : Доставлено'}</Text>
+                <Text style={{ color: '#68768C' }}>
+                  {role === 'owner' 
+                    ? (order.status === 'delivered' ? 'Доставлено' : 'Изменить на : Доставлено') 
+                    : (order.status === 'ready' ? 'Готов к отгрузке' : 'Изменить на : Готов к отгрузке')}
+                </Text>
               </div>
             </Card>
           );
@@ -116,6 +123,7 @@ const OrderList = () => {
       </div>
     );
   };
+  
 
   const columns = [
     {
@@ -123,31 +131,40 @@ const OrderList = () => {
       dataIndex: 'date',
       editable: false,
       render: (_, record) => {
-        return new Date(record.date.seconds * 1000).toLocaleDateString('ru-RU', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        });
+        if (record.date && record.date.seconds) {
+          return new Date(record.date.seconds * 1000).toLocaleDateString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          });
+        } else {
+          return 'Дата отсутствует';
+        }
       },
     },
     {
       title: 'КЛИЕНТ',
       dataIndex: 'client',
       editable: false,
+      render: (client) => client || 'Клиент не указан',
     },
     {
       title: 'ПРОДУКТ',
       dataIndex: 'product',
       editable: false,
       render: (_, record) => {
-        const [mainCategory, subCategory] = record.product.split(' > ');
-        return (
-          <span>
-            <span style={{ fontWeight: 'bold', color: '#1F2A37' }}>{mainCategory}</span> 
-            {' > '}
-            <span style={{ color: '#6B7280' }}>{subCategory}</span>
-          </span>
-        );
+        if (record.product) {
+          const [mainCategory, subCategory] = record.product.split(' > ');
+          return (
+            <span>
+              <span style={{ fontWeight: 'bold', color: '#1F2A37' }}>{mainCategory}</span> 
+              {' > '}
+              <span style={{ color: '#6B7280' }}>{subCategory || ''}</span>
+            </span>
+          );
+        } else {
+          return 'Продукт не указан';
+        }
       },
     },
     {
@@ -155,23 +172,32 @@ const OrderList = () => {
       dataIndex: 'quantity',
       valueType: 'digit',
       editable: false,
+      render: (quantity) => quantity || 'Кол-во не указано',
     },
-    {
-      title: 'ЦЕНА',
-      dataIndex: 'price',
-      valueType: 'text',
-      editable: false,
-      render: (_, record) => (
-        <div style={{ textAlign: 'left' }}>
-          <Text  style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
-            {(record.quantity * record.price * 1000).toLocaleString('ru-RU')}
-          </Text>
-          <Text style={{ display: 'block', fontWeight: 200, color: '#6B7280', fontSize: 14 }}>
-            {record.price.toLocaleString('ru-RU')} сум/шт
-          </Text>
-        </div>
-      ),
-    },
+    ...(role === 'owner' ? [
+      {
+        title: 'ЦЕНА',
+        dataIndex: 'price',
+        valueType: 'text',
+        editable: false,
+        render: (_, record) => {
+          if (record.price !== undefined) {
+            return (
+              <div style={{ textAlign: 'left' }}>
+                <Text  style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
+                  {(record.quantity * record.price * 1000).toLocaleString('ru-RU')}
+                </Text>
+                <Text style={{ display: 'block', fontWeight: 200, color: '#6B7280', fontSize: 14 }}>
+                  {record.price.toLocaleString('ru-RU')} сум/шт
+                </Text>
+              </div>
+            );
+          } else {
+            return 'Цена не указана';
+          }
+        },
+      }
+    ] : []),
     {
       title: 'СТАТУС',
       dataIndex: 'status',
@@ -209,7 +235,7 @@ const OrderList = () => {
             />
           );
         }
-        return null;
+        return 'Статус не указан';
       },
     },
   ];
