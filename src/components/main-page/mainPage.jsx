@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification, theme } from 'antd';
+import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification, theme, Drawer } from 'antd';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { auth, db } from '../login-signUp/firebase';
 import { getDoc, doc, collection, getDocs } from "firebase/firestore";
@@ -12,7 +12,9 @@ import {
   MenuFoldOutlined,
   TeamOutlined,
   AppstoreAddOutlined,
-  FormOutlined
+  FormOutlined,
+  MenuOutlined,
+  CloseOutlined, // Import Close Icon
 } from '@ant-design/icons';
 import './mainPage.css';
 
@@ -26,6 +28,9 @@ const MainPage = () => {
   const [organizationID, setOrganizationID] = useState('');
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768); // initial check for mobile
+
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
@@ -50,22 +55,29 @@ const MainPage = () => {
     });
     return () => unsubscribe(); // Cleanup the listener on component unmount
   }, []);
-  
 
+  // Handle window resize to toggle mobile view
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const fetchUserData = async () => {
     try {
       const userUid = auth.currentUser.uid;
-  
+
       // Check if the user is an owner
       const ownerDocRef = doc(db, "owner-users", userUid);
       const ownerDocSnap = await getDoc(ownerDocRef);
-  
+
       if (ownerDocSnap.exists()) {
         const userData = ownerDocSnap.data();
         userData.role = 'owner'; // Set role as owner
         setUserDetails(userData);
-  
+
         if (userData.organizationID) {
           setOrganizationID(userData.organizationID);
           const organizationDocRef = doc(db, "organizations", userData.organizationID);
@@ -82,14 +94,14 @@ const MainPage = () => {
         // User is not an owner, check if they are a member
         const organizationsRef = collection(db, "organizations");
         const orgsSnapshot = await getDocs(organizationsRef);
-  
+
         let isMember = false;
-  
+
         for (const orgDoc of orgsSnapshot.docs) {
           const orgID = orgDoc.id;
           const memberDocRef = doc(db, `organizations/${orgID}/members`, userUid);
           const memberDocSnap = await getDoc(memberDocRef);
-  
+
           if (memberDocSnap.exists()) {
             const memberData = memberDocSnap.data();
             memberData.role = 'member'; // Set role as member
@@ -100,7 +112,7 @@ const MainPage = () => {
             break; // Exit the loop once the user is found in any organization
           }
         }
-  
+
         if (!isMember) {
           console.error("User not found in owner-users or any organization's members");
           navigate("/error"); // Redirect to error page if user is not found in either collection
@@ -115,59 +127,73 @@ const MainPage = () => {
     }
     setLoading(false);
   };
-  
+
+  const menuItems = [
+    {
+      key: '1',
+      icon: <DashboardOutlined />,
+      label: <Link to="/mainpage/dashboard" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Dashboard</Link>,
+    },
+    ...(userDetails?.role === 'owner' ? [
+      {
+        key: '2',
+        icon: <FormOutlined />,
+        label: <Link to="/mainpage/create-order" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Добавить заказ</Link>,
+      }
+    ] : []),
+    {
+      key: '3',
+      icon: <OrderedListOutlined />,
+      label: <Link to="/mainpage/order-list" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Заказы</Link>,
+    },
+    {
+      key: '4',
+      icon: <TeamOutlined />,
+      label: <Link to="/mainpage/employees" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Сотрудники</Link>,
+    },
+    {
+      key: '5',
+      icon: <AppstoreAddOutlined />,
+      label: <Link to="/mainpage/products" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Продукты</Link>,
+    },
+    {
+      key: '6',
+      icon: <LogoutOutlined />,
+      label: <Link to="/" onClick={() => setDrawerVisible(false)}>Log Out</Link>,
+    },
+    {
+      key: '7', // Ensure this key is unique
+      icon: <UserOutlined />,
+      label: <Link to="/mainpage/customers" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Клиенты</Link>,
+    },
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider trigger={null} collapsible collapsed={collapsed}>
-        <div className="whiteray-logo">
-          {collapsed ? '..' : organizationName || 'Loading...'}
-        </div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          defaultSelectedKeys={['1']}
-          items={[
-            {
-              key: '1',
-              icon: <DashboardOutlined />,
-              label: <Link to="/mainpage/dashboard" state={{ organizationID }}>Dashboard</Link>,
-            },
-            ...(userDetails?.role === 'owner' ? [
-              {
-                key: '2',
-                icon: <FormOutlined />,
-                label: <Link to="/mainpage/create-order" state={{ organizationID }}>Добавить заказ</Link>,
-              }
-            ] : []),
-            {
-              key: '3',
-              icon: <OrderedListOutlined />,
-              label: <Link to="/mainpage/order-list" state={{ organizationID }}>Заказы</Link>,
-            },
-            {
-              key: '4',
-              icon: <TeamOutlined />,
-              label: <Link to="/mainpage/employees" state={{ organizationID }}>Сотрудники</Link>,
-            },
-            {
-              key: '5',
-              icon: <AppstoreAddOutlined />,
-              label: <Link to="/mainpage/products" state={{ organizationID }}>Продукты</Link>,
-            },
-            {
-              key: '6',
-              icon: <LogoutOutlined />,
-              label: <Link to="/">Log Out</Link>,
-            },
-            {
-              key: '7', // Ensure this key is unique
-              icon: <UserOutlined />,
-              label: <Link to="/mainpage/customers" state={{ organizationID }}>Клиенты</Link>,
-            },
-          ]}
-        />
-      </Sider>
+      {isMobile ? (
+        <Drawer
+          title={
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>{organizationName || 'Menu'}</span>
+              <Button type="text" icon={<CloseOutlined />} onClick={() => setDrawerVisible(false)} />
+            </div>
+          }
+          placement="left"
+          closable={false}
+          onClose={() => setDrawerVisible(false)}
+          visible={drawerVisible}
+          bodyStyle={{ padding: 0 }}
+        >
+          <Menu theme="dark" mode="inline" items={menuItems} />
+        </Drawer>
+      ) : (
+        <Sider trigger={null} collapsible collapsed={collapsed}>
+          <div className="whiteray-logo">
+            {collapsed ? '..' : organizationName || 'Loading...'}
+          </div>
+          <Menu theme="dark" mode="inline" defaultSelectedKeys={['1']} items={menuItems} />
+        </Sider>
+      )}
       <Layout>
         <Header
           style={{
@@ -177,16 +203,29 @@ const MainPage = () => {
             alignItems: 'center',
           }}
         >
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{
-              fontSize: '16px',
-              width: 64,
-              height: 64,
-            }}
-          />
+          {isMobile ? (
+            <Button
+              type="text"
+              icon={<MenuOutlined />}
+              onClick={() => setDrawerVisible(true)}
+              style={{
+                fontSize: '16px',
+                width: 64,
+                height: 64,
+              }}
+            />
+          ) : (
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{
+                fontSize: '16px',
+                width: 64,
+                height: 64,
+              }}
+            />
+          )}
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
             <div className="userdata" style={{ display: 'flex', alignItems: 'center' }}>
               <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />

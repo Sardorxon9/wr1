@@ -11,7 +11,7 @@ import OrderList from './components/order-pages/OrderList';
 import Employees from './components/employees/Employees';
 import Products from './components/product-pages/Products';
 import SignupPage from './components/login-signUp/signupPage';
-import ErrorPage from './components/ErrorPage'; // Import the ErrorPage component
+import ErrorPage from './components/ErrorPage'; 
 import Customers from './components/customers/Customers';
 import './App.css';
 
@@ -19,11 +19,14 @@ export default function App() {
   return (
     <Router>
       <Routes>
+        {/* Authentication Routes */}
         <Route path="/" element={<LoginPage />} />
         <Route path="/signup-options" element={<SignupPage />} />
         <Route path="/register" element={<RegistrationOwner />} />
         <Route path="/register-member" element={<RegistrationMember />} />
         <Route path="/success" element={<SuccessPage />} />
+
+        {/* Main Application Routes */}
         <Route path="/mainpage" element={<MainPage />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
@@ -32,8 +35,14 @@ export default function App() {
           <Route path="employees" element={<Employees />} />
           <Route path="products" element={<Products />} />
           <Route path="customers" element={<Customers />} />
+              <Route path="customers" element={<Customers />} />
         </Route>
+
+        {/* Error Page */}
         <Route path="/error" element={<ErrorPage />} />
+
+        {/* Redirect any unknown paths to the error page */}
+        <Route path="*" element={<Navigate to="/error" replace />} />
       </Routes>
     </Router>
   );
