@@ -14,7 +14,7 @@ import {
   AppstoreAddOutlined,
   FormOutlined,
   MenuOutlined,
-  CloseOutlined, // Import Close Icon
+  CloseOutlined,
 } from '@ant-design/icons';
 import './mainPage.css';
 
@@ -29,7 +29,7 @@ const MainPage = () => {
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768); // initial check for mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -56,7 +56,6 @@ const MainPage = () => {
     return () => unsubscribe(); // Cleanup the listener on component unmount
   }, []);
 
-  // Handle window resize to toggle mobile view
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -157,16 +156,22 @@ const MainPage = () => {
       label: <Link to="/mainpage/products" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Продукты</Link>,
     },
     {
+      key: '7',
+      icon: <UserOutlined />,
+      label: <Link to="/mainpage/customers" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Клиенты</Link>,
+    },
+    {
+      key: '8',
+      icon: <UserOutlined />,
+      label: <Link to="/mainpage/setup-telegram" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Настройка Telegram</Link>,
+    },
+    {
       key: '6',
       icon: <LogoutOutlined />,
       label: <Link to="/" onClick={() => setDrawerVisible(false)}>Log Out</Link>,
     },
-    {
-      key: '7', // Ensure this key is unique
-      icon: <UserOutlined />,
-      label: <Link to="/mainpage/customers" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Клиенты</Link>,
-    },
   ];
+  
 
   return (
     <Layout style={{ minHeight: '100vh' }}>

@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, Select, message, Typography } from 'antd';
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, setDoc } from "firebase/firestore";
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
-
 
 // Custom Telegram Icon using SVG
 const TelegramIcon = () => (
@@ -67,20 +66,41 @@ const Customers = () => {
     setIsModalVisible(false);
   };
 
+  const generateToken = () => {
+    // Generate a random 10-character alphanumeric code
+    return Math.random().toString(36).substring(2, 12).toUpperCase();
+  };
+
   const handleAddCustomer = async (values) => {
     try {
+      // Generate a unique token for the customer
+      const token = generateToken();
+  
+      // Create a document ID for the customer in the customers collection
+      const customerDocRef = doc(collection(db, `organizations/${organizationID}/customers`));
+      const userID = customerDocRef.id; // This will be used as the ID for the customer's record
+  
       // Process the Telegram ID to save both the URL and the ID
       const telegramID = values.telegramID;
       const customerData = {
         ...values,
         telegram_url: `https://t.me/${telegramID}`,
         telegram_id: telegramID,
+        token,  // Include the generated token
+        organizationID,
+        userID  // Store the generated user ID
       };
-
-      await addDoc(collection(db, `organizations/${organizationID}/customers`), customerData);
+  
+      // Add the customer to the 'customers' collection
+      await setDoc(customerDocRef, customerData);
+  
+      // Add the customer to the 'tg_tokens/customer_tokens' collection
+      await setDoc(doc(db, `tg_tokens/customer_tokens`, userID), customerData);
+  
       message.success('Клиент успешно добавлен!');
       setIsModalVisible(false);
       form.resetFields();
+  
       // Refresh customers list
       const customersSnapshot = await getDocs(collection(db, `organizations/${organizationID}/customers`));
       const customersData = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -89,6 +109,7 @@ const Customers = () => {
       message.error('Ошибка при добавлении клиента: ' + error.message);
     }
   };
+  
 
   const formatPhoneNumber = (phone) => {
     // Format phone number with spaces
@@ -182,15 +203,15 @@ const Customers = () => {
             />
           </Form.Item>
           <Form.Item name="telegramID" label="Telegram ID" rules={[{ required: true, message: 'Пожалуйста, введите Telegram ID!' }]}>
-          <Input
-  addonBefore={
-    <div style={{ display: 'flex', alignItems: 'center' }}>
-      <TelegramIcon />
-      <span style={{ marginLeft: '5px' }}>tg.me/</span>
-    </div>
-  }
-  placeholder="Введите Telegram ID"
-/>
+            <Input
+              addonBefore={
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <TelegramIcon />
+                  <span style={{ marginLeft: '5px' }}>tg.me/</span>
+                </div>
+              }
+              placeholder="Введите Telegram ID"
+            />
           </Form.Item>
         </Form>
       </Modal>

@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, DatePicker, InputNumber, Radio, Typography, Space, message, Cascader, Select, Spin } from 'antd';
-import dayjs from 'dayjs';  // Import Day.js
+import dayjs from 'dayjs';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import './CreateOrder.css';
 import { auth, db } from "../login-signUp/firebase";
 import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+
+// Telegram Bot API token and chat ID variables
+const TELEGRAM_API_TOKEN = '7536935708:AAFb8VzUJ-G8QVNrEmJBOiI5xbvT7DWKrs0'; // Replace with your Telegram Bot API token
 
 const { Title, Text } = Typography;
 
@@ -23,8 +26,8 @@ const CreateOrder = () => {
   const [categories, setCategories] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [cascaderOptions, setCascaderOptions] = useState([]);
-  const [loading, setLoading] = useState(false); // Spinner state
-  const [orderNumber, setOrderNumber] = useState(''); // Order number state
+  const [loading, setLoading] = useState(false);
+  const [orderNumber, setOrderNumber] = useState('');
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -44,7 +47,7 @@ const CreateOrder = () => {
 
   useEffect(() => {
     const fetchProductsCategoriesCustomers = async () => {
-      if (organizationID) { // Ensure organizationID is set before proceeding
+      if (organizationID) {
         const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
         const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(productsData);
@@ -68,7 +71,7 @@ const CreateOrder = () => {
         const customersData = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setCustomers(customersData);
 
-        // Only generate order number after all data has been fetched
+        // Generate order number after data has been fetched
         await generateOrderNumber();
       }
     };
@@ -82,16 +85,15 @@ const CreateOrder = () => {
     const month = (`0${now.getMonth() + 1}`).slice(-2);
     const randomChars = Math.random().toString(36).substring(2, 4).toUpperCase();
 
-    // Fetch the latest order to determine the sequence number
     const ordersRef = collection(db, `organizations/${organizationID}/orders`);
     const ordersQuery = query(ordersRef, orderBy('date', 'desc'), limit(1));
     const latestOrderSnapshot = await getDocs(ordersQuery);
 
-    let sequenceNumber = 1; // Start from 0001 if no previous order or orderNumber is missing
+    let sequenceNumber = 1;
     if (!latestOrderSnapshot.empty) {
       const latestOrder = latestOrderSnapshot.docs[0].data();
       const latestOrderNumber = latestOrder.orderNumber;
-      
+
       if (latestOrderNumber) {
         const latestSequence = parseInt(latestOrderNumber.slice(-4), 10);
         if (!isNaN(latestSequence)) {
@@ -116,9 +118,9 @@ const CreateOrder = () => {
   };
 
   const onFinish = async (values) => {
-    setLoading(true); // Show spinner
+    setLoading(true);
     try {
-      const orderId = `order_${new Date().getTime()}`; // Generate a unique order ID
+      const orderId = `order_${new Date().getTime()}`;
       const quantityMultiplier = 1000;
       const total = values.quantity * values.price * quantityMultiplier;
       const orderData = {
@@ -127,25 +129,73 @@ const CreateOrder = () => {
         product: values.product ? values.product.join(' > ') : '',
         total: total,
         email: auth.currentUser.email,
-        orderNumber, // Include the generated order number
-        orderID: orderId, // Save the generated order ID as a property in the order document
+        orderNumber,
+        orderID: orderId,
       };
       await setDoc(doc(db, `organizations/${organizationID}/orders`, orderId), orderData);
+
+      // Fetch owner's Telegram ID
+      const ownerTokenRef = collection(db, `tg_tokens/owner_tokens`);
+      const ownerQuery = query(ownerTokenRef, where('organizationID', '==', organizationID));
+      const ownerSnapshot = await getDocs(ownerQuery);
+
+      let ownerTelegramId = null;
+      if (!ownerSnapshot.empty) {
+        const ownerData = ownerSnapshot.docs[0].data();
+        ownerTelegramId = ownerData.telegramId;
+      }
+
+      // Fetch customer Telegram ID
+      const customer = customers.find(cust => cust.companyName === values.client);
+      let customerTelegramId = null;
+      if (customer) {
+        const customerTokenRef = doc(db, `tg_tokens/customer_tokens/${customer.userID}`);
+        const customerTokenSnap = await getDoc(customerTokenRef);
+
+        if (customerTokenSnap.exists()) {
+          customerTelegramId = customerTokenSnap.data().telegramId;
+        }
+      }
+
+      // Notify the owner
+      if (ownerTelegramId) {
+        await sendTelegramNotification(ownerTelegramId, `Новый заказ: ${orderNumber}\nКомпания: ${values.client}\nИтого: ${formatNumber(total)} сум`);
+      }
+
+      // Notify the customer
+      if (customerTelegramId) {
+        await sendTelegramNotification(customerTelegramId, `Ваш заказ создан: ${orderNumber}\nКомпания: ${values.client}\nИтого: ${formatNumber(total)} сум`);
+      }
+
       messageApi.open({
         type: 'success',
         content: 'Заказ успешно добавлен!',
       });
       form.resetFields();
       setOrderPreview({ client: '', product: [], quantity: 1, price: 0 });
-      await generateOrderNumber(); // Generate new order number for the next order
+      await generateOrderNumber();
     } catch (error) {
       messageApi.open({
         type: 'error',
         content: 'Ошибка: ' + error.message,
       });
     } finally {
-      setLoading(false); // Hide spinner
+      setLoading(false);
     }
+  };
+
+  const sendTelegramNotification = async (telegramId, message) => {
+    const url = `https://api.telegram.org/bot${TELEGRAM_API_TOKEN}/sendMessage`;
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chat_id: telegramId,
+        text: message,
+      }),
+    });
   };
 
   const formatNumber = (number) => {
@@ -185,8 +235,8 @@ const CreateOrder = () => {
                 rules={[{ required: true, message: 'Пожалуйста, выберите дату!' }]}
               >
                 <DatePicker 
-                  defaultPickerValue={dayjs()} // Set default picker value to today's date
-                  defaultValue={dayjs()} // Pre-select today's date
+                  defaultPickerValue={dayjs()} 
+                  defaultValue={dayjs()} 
                   placeholder="Выберите дату" 
                 />
               </Form.Item>
