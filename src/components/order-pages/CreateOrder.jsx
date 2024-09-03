@@ -7,8 +7,7 @@ import './CreateOrder.css';
 import { auth, db } from "../login-signUp/firebase";
 import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 
-// Telegram Bot API token and chat ID variables
-const TELEGRAM_API_TOKEN = '7536935708:AAFb8VzUJ-G8QVNrEmJBOiI5xbvT7DWKrs0'; // Replace with your Telegram Bot API token
+
 
 const { Title, Text } = Typography;
 
@@ -134,38 +133,7 @@ const CreateOrder = () => {
       };
       await setDoc(doc(db, `organizations/${organizationID}/orders`, orderId), orderData);
 
-      // Fetch owner's Telegram ID
-      const ownerTokenRef = collection(db, `tg_tokens/owner_tokens`);
-      const ownerQuery = query(ownerTokenRef, where('organizationID', '==', organizationID));
-      const ownerSnapshot = await getDocs(ownerQuery);
-
-      let ownerTelegramId = null;
-      if (!ownerSnapshot.empty) {
-        const ownerData = ownerSnapshot.docs[0].data();
-        ownerTelegramId = ownerData.telegramId;
-      }
-
-      // Fetch customer Telegram ID
-      const customer = customers.find(cust => cust.companyName === values.client);
-      let customerTelegramId = null;
-      if (customer) {
-        const customerTokenRef = doc(db, `tg_tokens/customer_tokens/${customer.userID}`);
-        const customerTokenSnap = await getDoc(customerTokenRef);
-
-        if (customerTokenSnap.exists()) {
-          customerTelegramId = customerTokenSnap.data().telegramId;
-        }
-      }
-
-      // Notify the owner
-      if (ownerTelegramId) {
-        await sendTelegramNotification(ownerTelegramId, `Новый заказ: ${orderNumber}\nКомпания: ${values.client}\nИтого: ${formatNumber(total)} сум`);
-      }
-
-      // Notify the customer
-      if (customerTelegramId) {
-        await sendTelegramNotification(customerTelegramId, `Ваш заказ создан: ${orderNumber}\nКомпания: ${values.client}\nИтого: ${formatNumber(total)} сум`);
-      }
+      
 
       messageApi.open({
         type: 'success',
@@ -184,19 +152,7 @@ const CreateOrder = () => {
     }
   };
 
-  const sendTelegramNotification = async (telegramId, message) => {
-    const url = `https://api.telegram.org/bot${TELEGRAM_API_TOKEN}/sendMessage`;
-    await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chat_id: telegramId,
-        text: message,
-      }),
-    });
-  };
+
 
   const formatNumber = (number) => {
     return number.toLocaleString('ru-RU');

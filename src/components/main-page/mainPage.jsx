@@ -156,17 +156,13 @@ const MainPage = () => {
       label: <Link to="/mainpage/products" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Продукты</Link>,
     },
     {
-      key: '7',
+      key: '6',
       icon: <UserOutlined />,
       label: <Link to="/mainpage/customers" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Клиенты</Link>,
     },
+  
     {
-      key: '8',
-      icon: <UserOutlined />,
-      label: <Link to="/mainpage/setup-telegram" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Настройка Telegram</Link>,
-    },
-    {
-      key: '6',
+      key: '7',
       icon: <LogoutOutlined />,
       label: <Link to="/" onClick={() => setDrawerVisible(false)}>Log Out</Link>,
     },
