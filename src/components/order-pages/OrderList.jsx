@@ -102,8 +102,9 @@ const OrderList = () => {
                   ? new Date(order.date.seconds * 1000).toLocaleDateString('ru-RU')
                   : 'Дата не указана'}
               </Text>
-              <Text strong style={{ fontSize: 18, marginBottom: 4 }}>{order.brandName || 'Клиент не указан'}</Text>
-              <Text style={{ display: 'block', color: '#6B7280' }}>{order.companyName || 'Компания не указана'}</Text>
+              {/* Corrected client access */}
+              <Text strong style={{ fontSize: 18, marginBottom: 4 }}>{order.client?.brand || 'Клиент не указан'}</Text>
+              <Text style={{ display: 'block', color: '#6B7280' }}>{order.client?.companyName || 'Компания не указана'}</Text>
               <Text style={{ display: 'block', marginBottom: 8 }}>{order.product || 'Продукт не указан'}</Text>
               <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity || '0'} шт</Text>
               {role === 'owner' && order.price !== undefined && (
@@ -185,14 +186,15 @@ const OrderList = () => {
       valueType: 'text',
       editable: false,
       render: (_, record) => {
-        if (record.brandName && record.companyName) {
+        // Corrected client access
+        if (record.client?.brand && record.client?.companyName) {
           return (
             <div style={{ textAlign: 'left' }}>
               <Text style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
-                {record.brandName}
+                {record.client.brand}
               </Text>
-              <Text style={{ display: 'block', fontWeight: 200, color: '#6B7280', fontSize: 14 }}>
-                {record.companyName}
+              <Text style={{ display: 'block', fontWeight: 200, color: '#6B7280' }}>
+                {record.client.companyName}
               </Text>
             </div>
           );
@@ -309,7 +311,7 @@ const OrderList = () => {
 
   const filteredDataSource = selectedStatus === 'all'
     ? dataSource
-    : dataSource.filter(order => order.status === selectedStatus);
+     : dataSource.filter(order => order.status === selectedStatus);
 
   return (
     <>
