@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { EditableProTable } from '@ant-design/pro-components';
-import { Select, message, Typography, Badge, Radio, Card, Switch, Tabs, Spin, Popconfirm, Button } from 'antd';
+import { Table, Select, message, Typography, Badge, Radio, Card, Switch, Tabs, Spin, Popconfirm, Button } from 'antd';
 import { UnorderedListOutlined, AppstoreOutlined, CodeSandboxOutlined, CarOutlined, LoadingOutlined, DeleteOutlined } from '@ant-design/icons';
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from '../login-signUp/firebase';
@@ -18,7 +17,6 @@ const statusOptions = [
 
 const OrderList = () => {
   const { organizationID, role } = useOutletContext(); // Get organizationID and role from context
-  const [editableKeys, setEditableRowKeys] = useState([]);
   const [dataSource, setDataSource] = useState([]);
   const [viewMode, setViewMode] = useState('table');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -38,7 +36,6 @@ const OrderList = () => {
       const querySnapshot = await getDocs(collection(db, `organizations/${orgID}/orders`));
       const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setDataSource(orders);
-      setEditableRowKeys(orders.map(order => order.id));
     } catch (error) {
       console.error("Error fetching orders:", error);
       message.error("Ошибка при загрузке заказов.");
@@ -102,11 +99,10 @@ const OrderList = () => {
                   ? new Date(order.date.seconds * 1000).toLocaleDateString('ru-RU')
                   : 'Дата не указана'}
               </Text>
-              {/* Corrected client access */}
               <Text strong style={{ fontSize: 18, marginBottom: 4 }}>{order.client?.brand || 'Клиент не указан'}</Text>
               <Text style={{ display: 'block', color: '#6B7280' }}>{order.client?.companyName || 'Компания не указана'}</Text>
               <Text style={{ display: 'block', marginBottom: 8 }}>{order.product || 'Продукт не указан'}</Text>
-              <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity || '0'} шт</Text>
+              <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity ? order.quantity.toLocaleString('ru-RU') : '0'} шт</Text>
               {role === 'owner' && order.price !== undefined && (
                 <div style={{ textAlign: 'left', marginBottom: 16 }}>
                   <Text strong style={{ fontSize: 18, color: '#000' }}>
@@ -167,7 +163,6 @@ const OrderList = () => {
     {
       title: 'ДАТА',
       dataIndex: 'date',
-      editable: false,
       render: (_, record) => {
         if (record.date && record.date.seconds) {
           return new Date(record.date.seconds * 1000).toLocaleDateString('ru-RU', {
@@ -183,10 +178,7 @@ const OrderList = () => {
     {
       title: 'КОМПАНИЯ',
       dataIndex: 'client',
-      valueType: 'text',
-      editable: false,
       render: (_, record) => {
-        // Corrected client access
         if (record.client?.brand && record.client?.companyName) {
           return (
             <div style={{ textAlign: 'left' }}>
@@ -206,7 +198,6 @@ const OrderList = () => {
     {
       title: 'ПРОДУКТ',
       dataIndex: 'product',
-      editable: false,
       render: (_, record) => {
         if (typeof record.product === 'string' && record.product.includes(' > ')) {
           const [mainCategory, subCategory] = record.product.split(' > ');
@@ -225,16 +216,12 @@ const OrderList = () => {
     {
       title: 'КОЛИЧЕСТВО',
       dataIndex: 'quantity',
-      valueType: 'digit',
-      editable: false,
-      render: (quantity) => quantity || 'Кол-во не указано',
+      render: (quantity) => quantity ? quantity.toLocaleString('ru-RU') : 'Кол-во не указано',
     },
     ...(role === 'owner' ? [
       {
         title: 'ЦЕНА',
         dataIndex: 'price',
-        valueType: 'text',
-        editable: false,
         render: (_, record) => {
           if (record.price !== undefined) {
             return (
@@ -256,45 +243,29 @@ const OrderList = () => {
     {
       title: 'СТАТУС',
       dataIndex: 'status',
-      valueType: 'select',
-      renderFormItem: (_, { record }) => (
-        <Select
-          placeholder="Выберите статус"
-          defaultValue={record.status}
-          style={{ width: '100%' }}
-          dropdownStyle={{ minWidth: '160px' }}
-        >
-          {statusOptions.map(option => (
-            <Select.Option key={option.value} value={option.value}>
-              <span style={{ display: 'flex', alignItems: 'center' }}>
-                <Badge color={option.color} />
-                <span style={{ marginLeft: 8 }}>{option.label}</span>
-              </span>
-            </Select.Option>
-          ))}
-        </Select>
-      ),
       render: (_, record) => {
         const statusOption = statusOptions.find(option => option.value === record.status);
         if (statusOption) {
           return (
-            <Badge
-              color={statusOption.backgroundColor}
-              text={(
-                <>
-                  {statusOption.icon}
-                  <span style={{ marginLeft: 4 }}>{statusOption.label}</span>
-                </>
-              )}
-              style={{ backgroundColor: statusOption.backgroundColor, color: statusOption.textColor }}
-            />
+            <Select
+              placeholder="Выберите статус"
+              defaultValue={record.status}
+              style={{ width: '100%' }}
+              onChange={(value) => handleStatusChange(record.id, value)}
+            >
+              {statusOptions.map(option => (
+                <Select.Option key={option.value} value={option.value}>
+                  <Badge color={option.color} text={option.label} />
+                </Select.Option>
+              ))}
+            </Select>
           );
         }
         return 'Статус не указан';
       },
     },
     {
-      title: 'Действие',
+      title: 'ДЕЙСТВИЕ',
       key: 'action',
       render: (_, record) => (
         <Popconfirm
@@ -303,7 +274,9 @@ const OrderList = () => {
           okText="Да"
           cancelText="Нет"
         >
-          <Button type="link" icon={<DeleteOutlined />} danger />
+          <Button type="link" icon={<DeleteOutlined />} danger>
+            Удалить
+          </Button>
         </Popconfirm>
       ),
     },
@@ -311,7 +284,7 @@ const OrderList = () => {
 
   const filteredDataSource = selectedStatus === 'all'
     ? dataSource
-     : dataSource.filter(order => order.status === selectedStatus);
+    : dataSource.filter(order => order.status === selectedStatus);
 
   return (
     <>
@@ -337,19 +310,11 @@ const OrderList = () => {
           <Spin indicator={<LoadingOutlined spin />} size="large" />
         </div>
       ) : viewMode === 'table' ? (
-        <EditableProTable
+        <Table
           rowKey="id"
-          headerTitle="Список заказов"
           columns={columns}
-          value={filteredDataSource}
-          onChange={setDataSource}
-          editable={{
-            type: 'single',
-            editableKeys: [],
-            onSave: handleStatusChange,
-            onChange: setEditableRowKeys,
-          }}
-          recordCreatorProps={false} 
+          dataSource={filteredDataSource}
+          pagination={false}
         />
       ) : (
         renderCardView()

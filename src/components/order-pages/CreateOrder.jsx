@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, DatePicker, InputNumber, Radio, Typography, Space, message, Select, Spin, Cascader } from 'antd';
 import dayjs from 'dayjs';
-import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit, updateDoc } from "firebase/firestore";
+import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit, updateDoc, where } from "firebase/firestore";
+
 import { auth, db } from "../login-signUp/firebase";
 
 const { Title, Text } = Typography;
@@ -11,7 +12,7 @@ const CreateOrder = () => {
   const [messageApi, contextHolder] = message.useMessage();
   const [orderPreview, setOrderPreview] = useState({
     client: '',
-    product: [],  // Ensure this is always initialized as an array
+    product: [],
     quantity: 1,
     price: 0,
   });
@@ -98,14 +99,18 @@ const CreateOrder = () => {
     try {
       const orderId = `order_${new Date().getTime()}`;
       const total = values.quantity * values.price;
-
+  
+      // Find the selected product
       const selectedProduct = products.find(product => product.title === values.product[1]);
-
+  
       if (!selectedProduct) {
         throw new Error('Продукт не найден. Пожалуйста, проверьте данные заказа.');
       }
-
+  
+      // Find the selected customer
       const selectedCustomer = customers.find(customer => customer.brand === values.client);
+  
+      // Prepare order data
       const orderData = {
         ...values,
         date: values.date ? values.date.toDate() : new Date(),
@@ -122,27 +127,51 @@ const CreateOrder = () => {
           title: values.product ? values.product[1] : '',
         }
       };
-
+  
+      // Add the order to Firestore
       await setDoc(doc(db, `organizations/${organizationID}/orders`, orderId), orderData);
-
-      const materialSnapshot = await getDocs(collection(db, `organizations/${organizationID}/materials`));
-      const materialDataDoc = materialSnapshot.docs.find(doc => doc.data().name === selectedProduct.material);
-
-      if (materialDataDoc) {
-        const materialData = materialDataDoc.data();
-        const materialDocRef = doc(db, `organizations/${organizationID}/materials`, materialDataDoc.id);
-        const used = materialData.used + (values.quantity * selectedProduct.materialUsage / 1000); // Convert grams to kg
-        const available = materialData.total - used;
-
-        if (available < 0) {
-          throw new Error('Недостаточно материала для выполнения заказа. Пожалуйста, проверьте количество материалов.');
+  
+      // Fetch all materials and filter in JavaScript to avoid needing a composite index
+      const allMaterialsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/materials`));
+      const materials = allMaterialsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  
+      // Filter and sort materials by the oldest first
+      const filteredMaterials = materials
+        .filter(material => material.type === selectedProduct.material)
+        .sort((a, b) => a.dateAdded.toMillis() - b.dateAdded.toMillis()); // Assuming dateAdded is a Firestore Timestamp
+  
+      let remainingQuantity = values.quantity * selectedProduct.materialUsage / 1000; // Convert grams to kg
+  
+      // Deduct the material usage starting from the oldest
+      for (const material of filteredMaterials) {
+        if (remainingQuantity <= 0) break;
+  
+        const materialDocRef = doc(db, `organizations/${organizationID}/materials`, material.id);
+        const availableAmount = material.available;
+  
+        if (availableAmount > remainingQuantity) {
+          // Update only the used part of the material
+          await updateDoc(materialDocRef, {
+            used: material.used + remainingQuantity,
+            available: availableAmount - remainingQuantity,
+          });
+          remainingQuantity = 0;
+        } else {
+          // Use up all of this material and move to the next
+          await updateDoc(materialDocRef, {
+            used: material.total,
+            available: 0,
+          });
+          remainingQuantity -= availableAmount;
         }
-
-        await updateDoc(materialDocRef, { used, available });
-      } else {
-        throw new Error('Материал не найден. Пожалуйста, проверьте настройки продукта.');
       }
-
+  
+      // Throw error if not enough material
+      if (remainingQuantity > 0) {
+        throw new Error('Недостаточно материала для выполнения заказа. Пожалуйста, проверьте количество материалов.');
+      }
+  
+      // Show success message
       messageApi.open({
         type: 'success',
         content: 'Заказ успешно добавлен!',
@@ -159,10 +188,11 @@ const CreateOrder = () => {
       setLoading(false);
     }
   };
+  
 
   const formatQuantityInKg = (quantity, weightPerUnit) => {
     const totalWeight = (quantity * weightPerUnit) / 1000; // Convert grams to kilograms
-    return `${totalWeight} kg`;
+    return `${totalWeight.toFixed(2)} kg`;
   };
 
   const productOptions = products.reduce((acc, product) => {

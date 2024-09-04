@@ -7,7 +7,7 @@ import { useOutletContext } from 'react-router-dom';
 const Products = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [materials, setMaterials] = useState([]);
+  const [materialTypes, setMaterialTypes] = useState([]); // Changed to materialTypes
   const [isProductModalVisible, setIsProductModalVisible] = useState(false);
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [form] = Form.useForm();
@@ -15,7 +15,7 @@ const Products = () => {
   const { organizationID } = useOutletContext();
 
   useEffect(() => {
-    const fetchProductsCategoriesAndMaterials = async () => {
+    const fetchProductsCategoriesAndMaterialTypes = async () => { // Updated function name
       if (organizationID) {
         try {
           // Fetch products
@@ -28,17 +28,17 @@ const Products = () => {
           const categoriesData = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setCategories(categoriesData);
 
-          // Fetch materials
-          const materialsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/materials`));
-          const materialsData = materialsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setMaterials(materialsData);
+          // Fetch material types instead of materials
+          const materialTypesSnapshot = await getDocs(collection(db, `organizations/${organizationID}/material-types`));
+          const materialTypesData = materialTypesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setMaterialTypes(materialTypesData);
         } catch (error) {
           message.error('Ошибка при загрузке данных: ' + error.message);
         }
       }
     };
 
-    fetchProductsCategoriesAndMaterials();
+    fetchProductsCategoriesAndMaterialTypes(); // Updated function call
   }, [organizationID]);
 
   const showProductModal = () => {
@@ -153,9 +153,9 @@ const Products = () => {
           </Form.Item>
           <Form.Item name="material" label="Материал" rules={[{ required: true, message: 'Пожалуйста, выберите материал!' }]}>
             <Select placeholder="Выберите материал">
-              {materials.map(material => (
-                <Select.Option key={material.id} value={material.name}>
-                  {material.name}
+              {materialTypes.map(materialType => (
+                <Select.Option key={materialType.id} value={materialType.name}>
+                  {materialType.name}
                 </Select.Option>
               ))}
             </Select>
