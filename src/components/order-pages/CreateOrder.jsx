@@ -1,13 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, DatePicker, InputNumber, Radio, Typography, Space, message, Cascader, Select, Spin } from 'antd';
+import { Form, Input, Button, DatePicker, InputNumber, Radio, Typography, Space, message, Select, Spin, Cascader } from 'antd';
 import dayjs from 'dayjs';
-import { ArrowLeftOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom';
-import './CreateOrder.css';
+import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit, updateDoc } from "firebase/firestore";
 import { auth, db } from "../login-signUp/firebase";
-import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
-
-
 
 const { Title, Text } = Typography;
 
@@ -16,15 +11,13 @@ const CreateOrder = () => {
   const [messageApi, contextHolder] = message.useMessage();
   const [orderPreview, setOrderPreview] = useState({
     client: '',
-    product: [],
+    product: [],  // Ensure this is always initialized as an array
     quantity: 1,
     price: 0,
   });
   const [organizationID, setOrganizationID] = useState('');
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [cascaderOptions, setCascaderOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
 
@@ -45,37 +38,21 @@ const CreateOrder = () => {
   }, []);
 
   useEffect(() => {
-    const fetchProductsCategoriesCustomers = async () => {
+    const fetchProductsAndCustomers = async () => {
       if (organizationID) {
         const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
         const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(productsData);
 
-        const categoriesSnapshot = await getDocs(collection(db, `organizations/${organizationID}/product-categories`));
-        const categoriesData = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setCategories(categoriesData);
-
-        const options = categoriesData.map(category => ({
-          value: category.name,
-          label: category.name,
-          children: productsData.filter(product => product.category === category.name).map(product => ({
-            value: product.title,
-            label: product.title,
-          })),
-        }));
-
-        setCascaderOptions(options);
-
         const customersSnapshot = await getDocs(collection(db, `organizations/${organizationID}/customers`));
         const customersData = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setCustomers(customersData);
 
-        // Generate order number after data has been fetched
         await generateOrderNumber();
       }
     };
 
-    fetchProductsCategoriesCustomers();
+    fetchProductsAndCustomers();
   }, [organizationID]);
 
   const generateOrderNumber = async () => {
@@ -106,11 +83,11 @@ const CreateOrder = () => {
   };
 
   const onValuesChange = (_, allValues) => {
-    const selectedCustomer = customers.find(customer => customer.companyName === allValues.client);
+    const selectedCustomer = customers.find(customer => customer.brand === allValues.client);
     if (selectedCustomer) {
       form.setFieldsValue({
-        product: selectedCustomer.product ? selectedCustomer.product.split(' > ') : [],
-        price: selectedCustomer.price || 0,
+        product: selectedCustomer.product,
+        price: selectedCustomer.price,
       });
     }
     setOrderPreview(allValues);
@@ -120,20 +97,51 @@ const CreateOrder = () => {
     setLoading(true);
     try {
       const orderId = `order_${new Date().getTime()}`;
-      const quantityMultiplier = 1000;
-      const total = values.quantity * values.price * quantityMultiplier;
+      const total = values.quantity * values.price;
+
+      const selectedProduct = products.find(product => product.title === values.product[1]);
+
+      if (!selectedProduct) {
+        throw new Error('Продукт не найден. Пожалуйста, проверьте данные заказа.');
+      }
+
+      const selectedCustomer = customers.find(customer => customer.brand === values.client);
       const orderData = {
         ...values,
-        date: values.date.toDate(),
-        product: values.product ? values.product.join(' > ') : '',
-        total: total,
+        date: values.date ? values.date.toDate() : new Date(),
+        total,
         email: auth.currentUser.email,
         orderNumber,
         orderID: orderId,
+        client: {
+          brand: selectedCustomer?.brand || '',
+          companyName: selectedCustomer?.companyName || '',
+        },
+        product: {
+          category: values.product ? values.product[0] : '',
+          title: values.product ? values.product[1] : '',
+        }
       };
+
       await setDoc(doc(db, `organizations/${organizationID}/orders`, orderId), orderData);
 
-      
+      const materialSnapshot = await getDocs(collection(db, `organizations/${organizationID}/materials`));
+      const materialDataDoc = materialSnapshot.docs.find(doc => doc.data().name === selectedProduct.material);
+
+      if (materialDataDoc) {
+        const materialData = materialDataDoc.data();
+        const materialDocRef = doc(db, `organizations/${organizationID}/materials`, materialDataDoc.id);
+        const used = materialData.used + (values.quantity * selectedProduct.materialUsage / 1000); // Convert grams to kg
+        const available = materialData.total - used;
+
+        if (available < 0) {
+          throw new Error('Недостаточно материала для выполнения заказа. Пожалуйста, проверьте количество материалов.');
+        }
+
+        await updateDoc(materialDocRef, { used, available });
+      } else {
+        throw new Error('Материал не найден. Пожалуйста, проверьте настройки продукта.');
+      }
 
       messageApi.open({
         type: 'success',
@@ -152,11 +160,24 @@ const CreateOrder = () => {
     }
   };
 
-
-
-  const formatNumber = (number) => {
-    return number.toLocaleString('ru-RU');
+  const formatQuantityInKg = (quantity, weightPerUnit) => {
+    const totalWeight = (quantity * weightPerUnit) / 1000; // Convert grams to kilograms
+    return `${totalWeight} kg`;
   };
+
+  const productOptions = products.reduce((acc, product) => {
+    const category = product.category;
+    const productItem = { value: product.title, label: product.title };
+    const categoryIndex = acc.findIndex(item => item.value === category);
+
+    if (categoryIndex > -1) {
+      acc[categoryIndex].children.push(productItem);
+    } else {
+      acc.push({ value: category, label: category, children: [productItem] });
+    }
+
+    return acc;
+  }, []);
 
   return (
     <div className="create-order-container">
@@ -180,7 +201,8 @@ const CreateOrder = () => {
           initialValues={{ 
             quantity: 1, 
             price: 0, 
-            status: 'in-progress' 
+            status: 'in-progress',
+            date: dayjs(),
           }}
         >
           <Space size="large" direction="vertical" style={{ width: '100%' }}>
@@ -199,24 +221,46 @@ const CreateOrder = () => {
               <Form.Item name="client" label="Клиент" rules={[{ required: true, message: 'Пожалуйста, выберите клиента!' }]}>
                 <Select placeholder="Выберите клиента">
                   {customers.map(customer => (
-                    <Select.Option key={customer.id} value={customer.companyName}>
-                      {customer.companyName}
+                    <Select.Option key={customer.id} value={customer.brand}>
+                      {customer.brand}
                     </Select.Option>
                   ))}
                 </Select>
               </Form.Item>
               <Form.Item name="product" label="Продукт" rules={[{ required: true, message: 'Пожалуйста, выберите продукт!' }]}>
-                <Cascader options={cascaderOptions} placeholder="Выберите продукт" />
+                <Cascader options={productOptions} placeholder="Выберите продукт" />
               </Form.Item>
             </div>
             <div className="form-row">
-              <Form.Item name="quantity" label="Количество" rules={[{ required: true, message: 'Пожалуйста, введите количество!' }]}>
-                <InputNumber min={1} style={{ width: '100%' }} />
+              <Form.Item 
+                name="quantity" 
+                label="Количество" 
+                rules={[{ required: true, message: 'Пожалуйста, введите количество!' }]}
+              >
+                <InputNumber 
+                  min={1} 
+                  style={{ width: '100%' }} 
+                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                />
               </Form.Item>
-              <Form.Item name="price" label="Цена" rules={[{ required: true, message: 'Пожалуйста, введите цену!' }]}>
-                <InputNumber min={0} style={{ width: '100%' }} />
+              <Form.Item 
+                name="price" 
+                label="Цена" 
+                rules={[{ required: true, message: 'Пожалуйста, введите цену!' }]}
+              >
+                <InputNumber 
+                  min={0} 
+                  style={{ width: '100%' }} 
+                  formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={value => value.replace(/\$\s?|(,*)/g, '')}
+                />
               </Form.Item>
-              <Form.Item name="status" label="Статус" rules={[{ required: true, message: 'Пожалуйста, выберите статус!' }]}>
+              <Form.Item 
+                name="status" 
+                label="Статус" 
+                rules={[{ required: true, message: 'Пожалуйста, выберите статус!' }]}
+              >
                 <Radio.Group>
                   <Radio value="in-progress">В процессе</Radio>
                   <Radio value="delivered">Доставлено</Radio>
@@ -227,10 +271,17 @@ const CreateOrder = () => {
             <div className="order-preview">
               <div className="order-summary">
                 <div><Text strong>Клиент:</Text> {orderPreview.client}</div>
-                <div><Text strong>Продукт:</Text> {Array.isArray(orderPreview.product) ? orderPreview.product.join(' > ') : ''}</div>
-                <div><Text strong>Количество:</Text> {orderPreview.quantity}</div>
-                <div><Text strong>Цена:</Text> {formatNumber(orderPreview.price)} сум</div>
-                <div className="order-total"><Text strong>Итого:</Text> {formatNumber(orderPreview.quantity * orderPreview.price * 1000)} сум</div>
+                <div><Text strong>Продукт:</Text> {orderPreview.product?.length > 0 ? orderPreview.product.join(' → ') : ''}</div>
+                <div>
+                  <Text strong>Количество:</Text> {(orderPreview.quantity || 0).toLocaleString()} шт
+                  <Text type="secondary" style={{ marginLeft: 8 }}>
+                    ({formatQuantityInKg(orderPreview.quantity || 0, products.find(p => p.title === (orderPreview.product?.[1] || ''))?.materialUsage || 0)})
+                  </Text>
+                </div>
+                <div><Text strong>Цена:</Text> {(orderPreview.price || 0).toLocaleString()} сум</div>
+                <div className="order-total">
+                  <Text strong>Итого:</Text> {((orderPreview.quantity || 0) * (orderPreview.price || 0)).toLocaleString()} сум
+                </div>
               </div>
             </div>
             <div className="form-actions" style={{ display: 'flex', flexDirection: 'column-reverse', gap: '10px' }}>

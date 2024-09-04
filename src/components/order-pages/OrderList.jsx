@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { EditableProTable } from '@ant-design/pro-components';
-import { Select, message, Typography, Badge, Radio, Card, Switch, Tabs, Spin } from 'antd';
-import { UnorderedListOutlined, AppstoreOutlined, CodeSandboxOutlined, CarOutlined, LoadingOutlined } from '@ant-design/icons';
-import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { Select, message, Typography, Badge, Radio, Card, Switch, Tabs, Spin, Popconfirm, Button } from 'antd';
+import { UnorderedListOutlined, AppstoreOutlined, CodeSandboxOutlined, CarOutlined, LoadingOutlined, DeleteOutlined } from '@ant-design/icons';
+import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from '../login-signUp/firebase';
-import { useOutletContext } from 'react-router-dom'; // Import this to use the context
+import { useOutletContext } from 'react-router-dom';
 import './OrderList.css';
 
 const { Title, Text } = Typography;
@@ -47,6 +47,32 @@ const OrderList = () => {
     }
   };
 
+  const handleDeleteOrder = async (id) => {
+    try {
+      const orderDoc = await getDoc(doc(db, `organizations/${organizationID}/orders`, id));
+      if (orderDoc.exists()) {
+        const orderData = orderDoc.data();
+        const selectedProduct = dataSource.find(product => product.name === orderData.product);
+        if (selectedProduct) {
+          const materialSnapshot = await getDocs(collection(db, `organizations/${organizationID}/materials`));
+          const materialData = materialSnapshot.docs.find(doc => doc.data().name === selectedProduct.material);
+          if (materialData) {
+            const materialDocRef = doc(db, `organizations/${organizationID}/materials`, materialData.id);
+            const used = materialData.data().used - (orderData.quantity * selectedProduct.weight / 1000);
+            const available = materialData.data().total - used;
+            await updateDoc(materialDocRef, { used, available });
+          }
+        }
+      }
+
+      await deleteDoc(doc(db, `organizations/${organizationID}/orders`, id));
+      setDataSource(dataSource.filter(order => order.id !== id));
+      message.success('Заказ успешно удален');
+    } catch (error) {
+      message.error('Ошибка при удалении заказа: ' + error.message);
+    }
+  };
+
   const handleStatusChange = async (id, newStatus) => {
     try {
       const newData = dataSource.map(item => (item.id === id ? { ...item, status: newStatus } : item));
@@ -64,7 +90,7 @@ const OrderList = () => {
     const filteredOrders = selectedStatus === 'all'
       ? dataSource
       : dataSource.filter(order => order.status === selectedStatus);
-  
+
     return (
       <div className="card-container">
         {filteredOrders.map(order => {
@@ -76,7 +102,8 @@ const OrderList = () => {
                   ? new Date(order.date.seconds * 1000).toLocaleDateString('ru-RU')
                   : 'Дата не указана'}
               </Text>
-              <Text strong style={{ fontSize: 18, marginBottom: 4 }}>{order.client || 'Клиент не указан'}</Text>
+              <Text strong style={{ fontSize: 18, marginBottom: 4 }}>{order.brandName || 'Клиент не указан'}</Text>
+              <Text style={{ display: 'block', color: '#6B7280' }}>{order.companyName || 'Компания не указана'}</Text>
               <Text style={{ display: 'block', marginBottom: 8 }}>{order.product || 'Продукт не указан'}</Text>
               <Text style={{ color: '#1890ff', display: 'block', marginBottom: 8 }}>{order.quantity || '0'} шт</Text>
               {role === 'owner' && order.price !== undefined && (
@@ -117,13 +144,23 @@ const OrderList = () => {
                     : (order.status === 'ready' ? 'Готов к отгрузке' : 'Изменить на : Готов к отгрузке')}
                 </Text>
               </div>
+              {/* Delete button for card view */}
+              <Popconfirm
+                title="Вы уверены, что хотите удалить этот заказ?"
+                onConfirm={() => handleDeleteOrder(order.id)}
+                okText="Да"
+                cancelText="Нет"
+              >
+                <Button type="link" icon={<DeleteOutlined />} danger>
+                  Удалить
+                </Button>
+              </Popconfirm>
             </Card>
           );
         })}
       </div>
     );
   };
-  
 
   const columns = [
     {
@@ -143,17 +180,33 @@ const OrderList = () => {
       },
     },
     {
-      title: 'КЛИЕНТ',
+      title: 'КОМПАНИЯ',
       dataIndex: 'client',
+      valueType: 'text',
       editable: false,
-      render: (client) => client || 'Клиент не указан',
+      render: (_, record) => {
+        if (record.brandName && record.companyName) {
+          return (
+            <div style={{ textAlign: 'left' }}>
+              <Text style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
+                {record.brandName}
+              </Text>
+              <Text style={{ display: 'block', fontWeight: 200, color: '#6B7280', fontSize: 14 }}>
+                {record.companyName}
+              </Text>
+            </div>
+          );
+        } else {
+          return 'Клиент не найден';
+        }
+      },
     },
     {
       title: 'ПРОДУКТ',
       dataIndex: 'product',
       editable: false,
       render: (_, record) => {
-        if (record.product) {
+        if (typeof record.product === 'string' && record.product.includes(' > ')) {
           const [mainCategory, subCategory] = record.product.split(' > ');
           return (
             <span>
@@ -163,7 +216,7 @@ const OrderList = () => {
             </span>
           );
         } else {
-          return 'Продукт не указан';
+          return record.product || 'Продукт не указан';
         }
       },
     },
@@ -184,7 +237,7 @@ const OrderList = () => {
           if (record.price !== undefined) {
             return (
               <div style={{ textAlign: 'left' }}>
-                <Text  style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
+                <Text style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
                   {(record.quantity * record.price * 1000).toLocaleString('ru-RU')}
                 </Text>
                 <Text style={{ display: 'block', fontWeight: 200, color: '#6B7280', fontSize: 14 }}>
@@ -238,6 +291,20 @@ const OrderList = () => {
         return 'Статус не указан';
       },
     },
+    {
+      title: 'Действие',
+      key: 'action',
+      render: (_, record) => (
+        <Popconfirm
+          title="Вы уверены, что хотите удалить этот заказ?"
+          onConfirm={() => handleDeleteOrder(record.id)}
+          okText="Да"
+          cancelText="Нет"
+        >
+          <Button type="link" icon={<DeleteOutlined />} danger />
+        </Popconfirm>
+      ),
+    },
   ];
 
   const filteredDataSource = selectedStatus === 'all'
@@ -276,7 +343,7 @@ const OrderList = () => {
           onChange={setDataSource}
           editable={{
             type: 'single',
-            editableKeys,
+            editableKeys: [],
             onSave: handleStatusChange,
             onChange: setEditableRowKeys,
           }}

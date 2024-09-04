@@ -15,6 +15,7 @@ import {
   FormOutlined,
   MenuOutlined,
   CloseOutlined,
+  CodeSandboxOutlined,
 } from '@ant-design/icons';
 import './mainPage.css';
 
@@ -160,14 +161,18 @@ const MainPage = () => {
       icon: <UserOutlined />,
       label: <Link to="/mainpage/customers" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Клиенты</Link>,
     },
-  
     {
       key: '7',
+      icon: <CodeSandboxOutlined />,
+      // Ensure organizationID is defined before using it in the Link
+      label: <Link to="/mainpage/materials" state={organizationID ? { organizationID } : {}} onClick={() => setDrawerVisible(false)}>Сырье</Link>,
+    },
+    {
+      key: '8',
       icon: <LogoutOutlined />,
       label: <Link to="/" onClick={() => setDrawerVisible(false)}>Log Out</Link>,
     },
   ];
-  
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
