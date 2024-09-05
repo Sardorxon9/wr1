@@ -16,7 +16,8 @@ const Customers = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
-  const { organizationID } = useOutletContext();
+  const [buttonLoading, setButtonLoading] = useState(false);
+  const { organizationID } = useOutletContext(); 
 
   useEffect(() => {
     const fetchProductsCategoriesAndCustomers = async () => {
@@ -25,7 +26,6 @@ const Customers = () => {
           // Fetch products
           const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
           const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          console.log(productsData)
           setProducts(productsData);
 
           // Fetch categories
@@ -33,14 +33,16 @@ const Customers = () => {
           const categoriesData = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setCategories(categoriesData);
 
-          // Prepare Cascader options
+          // Cascader options: use product ID as the value
           const options = categoriesData.map(category => ({
-            value: category.name,
+            value: category.id,  // Use ID here
             label: category.name,
-            children: productsData.filter(product => product.category === category.name).map(product => ({
-              value: product.title,
-              label: product.title,
-            })),
+            children: productsData
+              .filter(product => product.category === category.name)
+              .map(product => ({
+                value: product.id,  // Use product ID here
+                label: product.title,
+              })),
           }));
           setCascaderOptions(options);
 
@@ -67,28 +69,47 @@ const Customers = () => {
   };
 
   const handleAddCustomer = async (values) => {
+    setButtonLoading(true); 
     try {
-      await addDoc(collection(db, `organizations/${organizationID}/customers`), values);
+      // Store the product ID instead of name
+      await addDoc(collection(db, `organizations/${organizationID}/customers`), {
+        ...values,
+        product: values.product,  // This will now store the product ID
+      });
       message.success('Клиент успешно добавлен!');
       setIsModalVisible(false);
       form.resetFields();
       setCustomers([...customers, values]);
     } catch (error) {
       message.error('Ошибка при добавлении клиента: ' + error.message);
+    } finally {
+      setButtonLoading(false); 
     }
   };
 
+  const getProductNameById = (productId) => {
+    const product = products.find(p => p.id === productId);
+    return product ? product.title : 'Unknown Product';
+  };
+
+  const getCategoryNameById = (categoryId) => {
+    const category = categories.find(c => c.id === categoryId);
+    return category ? category.name : 'Unknown Category';
+  };
+
   const columns = [
-    {
-      title: 'Компания',
-      dataIndex: 'companyName',
-      key: 'companyName',
-    },
     {
       title: 'Бренд',
       dataIndex: 'brand',
       key: 'brand',
     },
+  
+    {
+      title: 'Компания',
+      dataIndex: 'companyName',
+      key: 'companyName',
+    },
+   
     {
       title: 'Контактное лицо',
       dataIndex: 'personInCharge',
@@ -98,6 +119,18 @@ const Customers = () => {
       title: 'Продукт',
       dataIndex: 'product',
       key: 'product',
+      render: ([categoryId, productId]) => {
+        const categoryName = getCategoryNameById(categoryId); 
+        const productName = getProductNameById(productId); 
+
+        return (
+          <>
+            <Typography.Text type="secondary">{categoryName}</Typography.Text> {/* Light gray category */}
+            {' → '}
+            <Typography.Text>{productName}</Typography.Text> {/* Regular text product name */}
+          </>
+        );
+      },
     },
     {
       title: 'Цена (сум)',
@@ -122,9 +155,10 @@ const Customers = () => {
         title="Добавить нового клиента"
         visible={isModalVisible}
         onCancel={handleCancel}
-        onOk={form.submit}
+        onOk={form.submit} 
         okText="Добавить"
         cancelText="Отмена"
+        confirmLoading={buttonLoading} 
       >
         <Form form={form} layout="vertical" onFinish={handleAddCustomer}>
           <Form.Item name="companyName" label="Название компании" rules={[{ required: true, message: 'Пожалуйста, введите название компании!' }]}>
