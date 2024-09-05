@@ -45,6 +45,7 @@ const CreateOrder = () => {
 
         const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
         const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log(productsData)
         setProducts(productsData);
 
         const customersSnapshot = await getDocs(collection(db, `organizations/${organizationID}/customers`));
@@ -91,13 +92,33 @@ const CreateOrder = () => {
   const onValuesChange = (_, allValues) => {
     const selectedCustomer = customers.find(customer => customer.brand === allValues.client);
     if (selectedCustomer) {
-      form.setFieldsValue({
-        product: selectedCustomer.product,
-        price: selectedCustomer.price,
-      });
+        // Set the correct product options based on selected customer
+        const productID = selectedCustomer.product[1]; // Extract the product ID
+
+        // Fetch product details from the 'products' collection
+        const fetchProductDetails = async () => {
+            try {
+                const productRef = doc(db, `organizations/${organizationID}/products/${productID}`);
+                const productSnapshot = await getDoc(productRef);
+                if (productSnapshot.exists()) {
+                    const fetchedProduct = productSnapshot.data();
+                    form.setFieldsValue({
+                        product: [fetchedProduct.category, fetchedProduct.title],
+                        price: selectedCustomer.price,
+                    });
+                } else {
+                    console.error("Product not found!");
+                }
+            } catch (error) {
+                console.error("Error fetching product details:", error);
+            }
+        };
+
+        fetchProductDetails(); // Call the function to fetch product details
     }
     setOrderPreview(allValues);
-  };
+};
+
 
   const onFinish = async (values) => {
     setLoading(true);
@@ -189,16 +210,24 @@ const CreateOrder = () => {
   };
 
   const productOptions = products.reduce((acc, product) => {
+    if (!product.category || !product.title) {
+      // Skip if category or title is missing
+      return acc;
+    }
+  
     const category = product.category;
     const productItem = { value: product.title, label: product.title };
+  
     const categoryIndex = acc.findIndex(item => item.value === category);
-
+  
     if (categoryIndex > -1) {
+      // If category exists, push the product under it
       acc[categoryIndex].children.push(productItem);
     } else {
+      // If category does not exist, create a new category with the product
       acc.push({ value: category, label: category, children: [productItem] });
     }
-
+  
     return acc;
   }, []);
 
