@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, DatePicker, InputNumber, Radio, Typography, Space, message, Select, Spin, Cascader } from 'antd';
 import dayjs from 'dayjs';
-import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit, updateDoc, where } from "firebase/firestore";
-
+import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit, updateDoc } from "firebase/firestore";
 import { auth, db } from "../login-signUp/firebase";
 
 const { Title, Text } = Typography;
@@ -20,6 +19,7 @@ const CreateOrder = () => {
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingCustomers, setLoadingCustomers] = useState(false); 
   const [orderNumber, setOrderNumber] = useState('');
 
   useEffect(() => {
@@ -41,6 +41,8 @@ const CreateOrder = () => {
   useEffect(() => {
     const fetchProductsAndCustomers = async () => {
       if (organizationID) {
+        setLoadingCustomers(true); 
+
         const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
         const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setProducts(productsData);
@@ -49,12 +51,15 @@ const CreateOrder = () => {
         const customersData = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setCustomers(customersData);
 
+        setLoadingCustomers(false); 
+
         await generateOrderNumber();
       }
     };
 
     fetchProductsAndCustomers();
   }, [organizationID]);
+  
 
   const generateOrderNumber = async () => {
     const now = new Date();
@@ -100,17 +105,27 @@ const CreateOrder = () => {
       const orderId = `order_${new Date().getTime()}`;
       const total = values.quantity * values.price;
   
-      // Find the selected product
       const selectedProduct = products.find(product => product.title === values.product[1]);
   
       if (!selectedProduct) {
         throw new Error('Продукт не найден. Пожалуйста, проверьте данные заказа.');
       }
   
-      // Find the selected customer
-      const selectedCustomer = customers.find(customer => customer.brand === values.client);
+      const allMaterialsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/materials`));
+      const materials = allMaterialsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   
-      // Prepare order data
+      const filteredMaterials = materials
+        .filter(material => material.type === selectedProduct.material)
+        .sort((a, b) => a.dateAdded.toMillis() - b.dateAdded.toMillis());
+  
+      let remainingQuantity = values.quantity * selectedProduct.materialUsage / 1000;
+  
+      const totalAvailableMaterial = filteredMaterials.reduce((sum, material) => sum + material.available, 0);
+      if (remainingQuantity > totalAvailableMaterial) {
+        throw new Error('Недостаточно материала для выполнения заказа. Пожалуйста, проверьте количество материалов.');
+      }
+  
+      const selectedCustomer = customers.find(customer => customer.brand === values.client);
       const orderData = {
         ...values,
         date: values.date ? values.date.toDate() : new Date(),
@@ -128,21 +143,8 @@ const CreateOrder = () => {
         }
       };
   
-      // Add the order to Firestore
       await setDoc(doc(db, `organizations/${organizationID}/orders`, orderId), orderData);
   
-      // Fetch all materials and filter in JavaScript to avoid needing a composite index
-      const allMaterialsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/materials`));
-      const materials = allMaterialsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  
-      // Filter and sort materials by the oldest first
-      const filteredMaterials = materials
-        .filter(material => material.type === selectedProduct.material)
-        .sort((a, b) => a.dateAdded.toMillis() - b.dateAdded.toMillis()); // Assuming dateAdded is a Firestore Timestamp
-  
-      let remainingQuantity = values.quantity * selectedProduct.materialUsage / 1000; // Convert grams to kg
-  
-      // Deduct the material usage starting from the oldest
       for (const material of filteredMaterials) {
         if (remainingQuantity <= 0) break;
   
@@ -150,14 +152,12 @@ const CreateOrder = () => {
         const availableAmount = material.available;
   
         if (availableAmount > remainingQuantity) {
-          // Update only the used part of the material
           await updateDoc(materialDocRef, {
             used: material.used + remainingQuantity,
             available: availableAmount - remainingQuantity,
           });
           remainingQuantity = 0;
         } else {
-          // Use up all of this material and move to the next
           await updateDoc(materialDocRef, {
             used: material.total,
             available: 0,
@@ -166,12 +166,6 @@ const CreateOrder = () => {
         }
       }
   
-      // Throw error if not enough material
-      if (remainingQuantity > 0) {
-        throw new Error('Недостаточно материала для выполнения заказа. Пожалуйста, проверьте количество материалов.');
-      }
-  
-      // Show success message
       messageApi.open({
         type: 'success',
         content: 'Заказ успешно добавлен!',
@@ -188,10 +182,9 @@ const CreateOrder = () => {
       setLoading(false);
     }
   };
-  
 
   const formatQuantityInKg = (quantity, weightPerUnit) => {
-    const totalWeight = (quantity * weightPerUnit) / 1000; // Convert grams to kilograms
+    const totalWeight = (quantity * weightPerUnit) / 1000;
     return `${totalWeight.toFixed(2)} kg`;
   };
 
@@ -249,12 +242,19 @@ const CreateOrder = () => {
                 />
               </Form.Item>
               <Form.Item name="client" label="Клиент" rules={[{ required: true, message: 'Пожалуйста, выберите клиента!' }]}>
-                <Select placeholder="Выберите клиента">
-                  {customers.map(customer => (
-                    <Select.Option key={customer.id} value={customer.brand}>
-                      {customer.brand}
-                    </Select.Option>
-                  ))}
+                <Select 
+                  placeholder="Выберите клиента" 
+                  loading={loadingCustomers} // Use the loading prop
+                >
+                  {customers.length > 0 ? (
+                    customers.map(customer => (
+                      <Select.Option key={customer.id} value={customer.brand}>
+                        {customer.brand}
+                      </Select.Option>
+                    ))
+                  ) : (
+                    <Select.Option disabled>Данные загружаются...</Select.Option>
+                  )}
                 </Select>
               </Form.Item>
               <Form.Item name="product" label="Продукт" rules={[{ required: true, message: 'Пожалуйста, выберите продукт!' }]}>

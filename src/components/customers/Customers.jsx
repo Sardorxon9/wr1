@@ -25,6 +25,7 @@ const Customers = () => {
           // Fetch products
           const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
           const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          console.log(productsData)
           setProducts(productsData);
 
           // Fetch categories

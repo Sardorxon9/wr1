@@ -30,6 +30,30 @@ const OrderList = () => {
     }
   }, [organizationID]);
 
+
+const [products, setProducts] = useState([]); // Add this state for products
+
+useEffect(() => {
+  if (organizationID) {
+    fetchOrders(organizationID);
+    fetchProducts(organizationID); // Fetch products along with orders
+  } else {
+    console.error('Organization ID is not defined');
+  }
+}, [organizationID]);
+
+const fetchProducts = async (orgID) => {
+  try {
+    const productsSnapshot = await getDocs(collection(db, `organizations/${orgID}/products`));
+    const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setProducts(productsData);
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    message.error("Ошибка при загрузке продуктов.");
+  }
+};
+
+
   const fetchOrders = async (orgID) => {
     setLoading(true);
     try {
@@ -49,26 +73,41 @@ const OrderList = () => {
       const orderDoc = await getDoc(doc(db, `organizations/${organizationID}/orders`, id));
       if (orderDoc.exists()) {
         const orderData = orderDoc.data();
-        const selectedProduct = dataSource.find(product => product.name === orderData.product);
+  
+        // Find the product from the order data
+        const selectedProduct = products.find(product => product.title === orderData.product?.title);
+        
         if (selectedProduct) {
+          // Get the material related to the product
           const materialSnapshot = await getDocs(collection(db, `organizations/${organizationID}/materials`));
           const materialData = materialSnapshot.docs.find(doc => doc.data().name === selectedProduct.material);
+          
           if (materialData) {
             const materialDocRef = doc(db, `organizations/${organizationID}/materials`, materialData.id);
-            const used = materialData.data().used - (orderData.quantity * selectedProduct.weight / 1000);
-            const available = materialData.data().total - used;
+            const material = materialData.data();
+  
+            // Calculate new used and available amounts after the order is deleted
+            const used = material.used - (orderData.quantity * selectedProduct.materialUsage / 1000); // grams to kg
+            const available = material.total - used;
+  
+            // Update the material stock in Firestore
             await updateDoc(materialDocRef, { used, available });
           }
         }
       }
-
+  
+      // Delete the order document from Firestore
       await deleteDoc(doc(db, `organizations/${organizationID}/orders`, id));
+  
+      // Update local state to reflect the deleted order
       setDataSource(dataSource.filter(order => order.id !== id));
+  
       message.success('Заказ успешно удален');
     } catch (error) {
       message.error('Ошибка при удалении заказа: ' + error.message);
     }
   };
+  
 
   const handleStatusChange = async (id, newStatus) => {
     try {
@@ -199,20 +238,14 @@ const OrderList = () => {
       title: 'ПРОДУКТ',
       dataIndex: 'product',
       render: (_, record) => {
-        if (typeof record.product === 'string' && record.product.includes(' > ')) {
-          const [mainCategory, subCategory] = record.product.split(' > ');
-          return (
-            <span>
-              <span style={{ fontWeight: 'bold', color: '#1F2A37' }}>{mainCategory}</span> 
-              {' > '}
-              <span style={{ color: '#6B7280' }}>{subCategory || ''}</span>
-            </span>
-          );
+        if (record.product && typeof record.product === 'object') {
+          return `${record.product.category} > ${record.product.title}`;
         } else {
-          return record.product || 'Продукт не указан';
+          return 'Продукт не указан';
         }
       },
     },
+    
     {
       title: 'КОЛИЧЕСТВО',
       dataIndex: 'quantity',
