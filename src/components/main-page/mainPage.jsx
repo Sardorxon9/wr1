@@ -172,6 +172,11 @@ const MainPage = () => {
       icon: <LogoutOutlined />,
       label: <Link to="/" onClick={() => setDrawerVisible(false)}>Log Out</Link>,
     },
+    {
+      key: '9',
+      icon: <LogoutOutlined />,
+      label: <Link to="/mainpage/test" onClick={() => setDrawerVisible(false)}>Test</Link>,
+    },
   ];
 
   return (

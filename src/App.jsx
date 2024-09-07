@@ -14,6 +14,7 @@ import SignupPage from './components/login-signUp/signupPage';
 import ErrorPage from './components/ErrorPage';
 import Customers from './components/customers/Customers';
 import Materials from './components/materials/Materials'; // Import the new Materials component
+import Test from './Test';
 import './App.css';
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="employees" element={<Employees />} />
           <Route path="products" element={<Products />} />
           <Route path="customers" element={<Customers />} />
+          <Route path="test" element={<Test />} />
           <Route path="materials" element={<Materials />} /> {/* Add this route */}
         </Route>
         <Route path="/error" element={<ErrorPage />} />
