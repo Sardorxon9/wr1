@@ -288,7 +288,10 @@ const fetchProducts = async (orgID) => {
             >
               {statusOptions.map(option => (
                 <Select.Option key={option.value} value={option.value}>
-                  <Badge color={option.color} text={option.label} />
+                  <Badge
+                    color={option.color}
+                    text={<span style={{ marginLeft: '8px' }}>{option.label}</span>} // Add margin to the text
+                  />
                 </Select.Option>
               ))}
             </Select>
@@ -296,6 +299,7 @@ const fetchProducts = async (orgID) => {
         }
         return 'Статус не указан';
       },
+      
     },
     {
       title: 'ДЕЙСТВИЕ',

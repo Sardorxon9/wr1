@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Avatar, Typography, Button, Modal, Input, message, Spin } from 'antd';
-import { UserOutlined, DeleteOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { Card, Avatar, Typography, Button, Modal, Input, message,Badge, Spin } from 'antd';
+import { UserOutlined, DeleteOutlined, ClockCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { db } from '../login-signUp/firebase';
 import { collection, addDoc, getDocs, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import { useOutletContext } from 'react-router-dom';
@@ -106,16 +106,30 @@ const Employees = () => {
     }
   };
 
-  const handleDeleteEmployee = async (memberId) => {
+  const handleDeleteEmployee = async (memberId, email) => {
+    setLoading(true);
     try {
+      // Delete from the organization's members collection
       await deleteDoc(doc(db, `organizations/${fetchedOrganizationID}/members`, memberId));
+  
+      // Delete from the invited-users collection (find by email)
+      const invitedUsersRef = collection(db, 'invited-users');
+      const invitedUsersSnapshot = await getDocs(query(invitedUsersRef, where('email', '==', email)));
+  
+      invitedUsersSnapshot.forEach(async (docSnapshot) => {
+        await deleteDoc(doc(db, 'invited-users', docSnapshot.id));
+      });
+  
       message.success('Пользователь удален.');
       setEmployees(employees.filter(employee => employee.id !== memberId));
     } catch (error) {
       console.error("Error deleting employee:", error);
       message.error("Ошибка при удалении пользователя.");
+    } finally {
+      setLoading(false);
     }
   };
+  
 
   return (
     <div>
@@ -126,31 +140,41 @@ const Employees = () => {
         ) : (
           employees.map((employee) => (
             <Card
-              key={employee.id}
-              className="employee-card"
-              actions={
-                role === 'owner' && employee.status !== 'pending' ? [
-                  <DeleteOutlined key="delete" onClick={() => handleDeleteEmployee(employee.id)} />,
-                ] : []
-              }
-              style={{ width: 300, textAlign: 'center' }}
-            >
-              <div className="employee-avatar">
-                <Avatar size={64} icon={employee.status === 'pending' ? <ClockCircleOutlined /> : <UserOutlined />} />
-              </div>
-              <div className="employee-info" style={{ marginTop: '12px' }}>
-                {employee.status === 'pending' ? (
-                  <Text style={{ fontWeight: 'bold' }}>Ожидает регистрации</Text>
-                ) : (
-                  <>
-  <Text style={{ fontWeight: 'bold', fontSize: '18px' }}>{employee.firstName} </Text>
-  <Text style={{ fontWeight: 'bold', fontSize: '18px' }}>{employee.lastName}</Text>
-  <Text style={{ color: '#1890ff', display: 'block', margin: '5px 0' }}>{employee.role}</Text>
-  <Text style={{ color: '#8c8c8c', display: 'block' }}>{employee.email}</Text>
-</>
-                )}
-              </div>
-            </Card>
+            key={employee.id}
+            className="employee-card"
+            actions={
+              role === 'owner' ? [
+                <DeleteOutlined key="delete" onClick={() => handleDeleteEmployee(employee.id, employee.email)} />,
+              ] : []
+            }
+            style={{ width: 300, textAlign: 'center' }}
+          >
+            <div className="employee-avatar">
+              <Avatar size={64} icon={employee.status === 'pending' ? <ExclamationCircleOutlined /> : <UserOutlined />} />
+            </div>
+            <div className="employee-info" style={{ marginTop: '12px' }}>
+              {employee.status === 'pending' ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <Badge
+                      status="warning"
+                      color="orange"
+                      text={<span style={{ marginLeft: '8px', fontWeight: 'bold' }}>Ожидает регистрации</span>} // Add margin between badge and text
+                    />
+                  </div>
+                  <Text style={{ color: '#8c8c8c', display: 'block', marginTop: '8px' }}>{employee.email}</Text> {/* Display email */}
+                </>
+              ) : (
+                <>
+                  <Text style={{ fontWeight: 'bold', fontSize: '18px' }}>{employee.firstName} {employee.lastName}</Text>
+                  <Text style={{ color: '#1890ff', display: 'block', margin: '5px 0' }}>{employee.role}</Text>
+                  <Text style={{ color: '#8c8c8c', display: 'block' }}>{employee.email}</Text>
+                </>
+              )}
+            </div>
+          </Card>
+          
+          
           ))
         )}
       </div>

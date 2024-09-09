@@ -16,7 +16,7 @@ import Customers from './components/customers/Customers';
 import Materials from './components/materials/Materials'; // Import the new Materials component
 import Test from './Test';
 import './App.css';
-import PaperManagement from './components/paper_control/PaperManagement';
+
 
 export default function App() {
   return (
@@ -36,7 +36,7 @@ export default function App() {
           <Route path="products" element={<Products />} />
           <Route path="customers" element={<Customers />} />
           <Route path="test" element={<Test />} />
-          <Route path="paper_manage" elements={<PaperManagement/>}/>
+          <Route path="paper_manage" elements={<Test/>}/>
           <Route path="materials" element={<Materials />} /> {/* Add this route */}
         </Route>
         <Route path="/error" element={<ErrorPage />} />
