@@ -29,15 +29,28 @@ const CreateOrder = () => {
         const userDocRef = doc(db, "owner-users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-          setOrganizationID(userDocSnap.data().organizationID);
+          const organizationID = userDocSnap.data().organizationID; // Assign the organizationID
+          setOrganizationID(organizationID);
+  
+          // Once the organizationID is available, fetch the customer paper data
+          fetchCustomerPaperData(organizationID);
         } else {
           console.error("No such user!");
         }
       }
     };
-    fetchUserData();
-  }, []);
+  
+    const fetchCustomerPaperData = async (organizationID) => {
+      const customersSnapshot = await getDocs(collection(db, `organizations/${organizationID}/customers`));
+      const customersData = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCustomers(customersData);
+    };
+  
+    fetchUserData(); // Only call fetchUserData once
+  }, []); // Empty dependency array ensures this runs once on component mount
+  
 
+  
   useEffect(() => {
     const fetchProductsAndCustomers = async () => {
       if (organizationID) {
@@ -120,89 +133,87 @@ const CreateOrder = () => {
 };
 
 
-  const onFinish = async (values) => {
-    setLoading(true);
-    try {
-      const orderId = `order_${new Date().getTime()}`;
-      const total = values.quantity * values.price;
-  
-      const selectedProduct = products.find(product => product.title === values.product[1]);
-  
-      if (!selectedProduct) {
-        throw new Error('Продукт не найден. Пожалуйста, проверьте данные заказа.');
-      }
-  
-      const allMaterialsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/materials`));
-      const materials = allMaterialsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  
-      const filteredMaterials = materials
-        .filter(material => material.type === selectedProduct.material)
-        .sort((a, b) => a.dateAdded.toMillis() - b.dateAdded.toMillis());
-  
-      let remainingQuantity = values.quantity * selectedProduct.materialUsage / 1000;
-  
-      const totalAvailableMaterial = filteredMaterials.reduce((sum, material) => sum + material.available, 0);
-      if (remainingQuantity > totalAvailableMaterial) {
-        throw new Error('Недостаточно материала для выполнения заказа. Пожалуйста, проверьте количество материалов.');
-      }
-  
-      const selectedCustomer = customers.find(customer => customer.brand === values.client);
-      const orderData = {
-        ...values,
-        date: values.date ? values.date.toDate() : new Date(),
-        total,
-        email: auth.currentUser.email,
-        orderNumber,
-        orderID: orderId,
-        client: {
-          brand: selectedCustomer?.brand || '',
-          companyName: selectedCustomer?.companyName || '',
-        },
-        product: {
-          category: values.product ? values.product[0] : '',
-          title: values.product ? values.product[1] : '',
-        }
-      };
-  
-      await setDoc(doc(db, `organizations/${organizationID}/orders`, orderId), orderData);
-  
-      for (const material of filteredMaterials) {
-        if (remainingQuantity <= 0) break;
-  
-        const materialDocRef = doc(db, `organizations/${organizationID}/materials`, material.id);
-        const availableAmount = material.available;
-  
-        if (availableAmount > remainingQuantity) {
-          await updateDoc(materialDocRef, {
-            used: material.used + remainingQuantity,
-            available: availableAmount - remainingQuantity,
-          });
-          remainingQuantity = 0;
-        } else {
-          await updateDoc(materialDocRef, {
-            used: material.total,
-            available: 0,
-          });
-          remainingQuantity -= availableAmount;
-        }
-      }
-  
-      messageApi.open({
-        type: 'success',
-        content: 'Заказ успешно добавлен!',
-      });
-      form.resetFields();
-      setOrderPreview({ client: '', product: [], quantity: 1, price: 0 });
-      await generateOrderNumber();
-    } catch (error) {
-      messageApi.open({
-        type: 'error',
-        content: 'Ошибка: ' + error.message,
-      });
-    } finally {
-      setLoading(false);
+// Updated Order Creation Logic in CreateOrder.jsx
+
+const onFinish = async (values) => {
+  setLoading(true);
+  try {
+    const orderId = `order_${new Date().getTime()}`;
+    const total = values.quantity * values.price;
+
+    // Fetch the selected product to get paper and material usage details
+    const selectedProduct = products.find(product => product.title === values.product[1]);
+
+    if (!selectedProduct) {
+      throw new Error('Продукт не найден. Пожалуйста, проверьте данные заказа.');
     }
-  };
+
+    // Fetch the customer's data from Firestore
+    const selectedCustomer = customers.find(customer => customer.brand === values.client);
+    if (!selectedCustomer) {
+      throw new Error('Клиент не найден. Пожалуйста, проверьте данные клиента.');
+    }
+
+    // Calculate total paper required for this order
+    const totalPaperRequired = (values.quantity * selectedProduct.requiredPaper) / 1000; // Convert to kg
+
+    // Check if the customer has enough available paper
+    if (selectedCustomer.paper.available < totalPaperRequired) {
+      throw new Error(`Недостаточно бумаги для выполнения заказа. Требуется: ${totalPaperRequired} кг, доступно: ${selectedCustomer.paper.available} кг.`);
+    }
+
+    // Proceed with creating the order and updating Firestore
+
+    // Deduct the used paper from customer's available paper and update in Firestore
+    const updatedAvailablePaper = selectedCustomer.paper.available - totalPaperRequired;
+    const updatedUsedPaper = selectedCustomer.paper.used + totalPaperRequired;
+
+    // Update customer's paper data in Firestore
+    const customerDocRef = doc(db, `organizations/${organizationID}/customers`, selectedCustomer.id);
+    await updateDoc(customerDocRef, {
+      "paper.available": updatedAvailablePaper,
+      "paper.used": updatedUsedPaper,
+    });
+
+    // Prepare the order data to be saved in Firestore
+    const orderData = {
+      ...values,
+      date: values.date ? values.date.toDate() : new Date(),
+      total,
+      email: auth.currentUser.email,
+      orderNumber,
+      orderID: orderId,
+      client: {
+        brand: selectedCustomer?.brand || '',
+        companyName: selectedCustomer?.companyName || '',
+      },
+      product: {
+        category: values.product ? values.product[0] : '',
+        title: values.product ? values.product[1] : '',
+      },
+    };
+
+    // Save the order to Firestore
+    await setDoc(doc(db, `organizations/${organizationID}/orders`, orderId), orderData);
+
+    messageApi.open({
+      type: 'success',
+      content: 'Заказ успешно добавлен!',
+    });
+
+    form.resetFields();
+    setOrderPreview({ client: '', product: [], quantity: 1, price: 0 });
+    await generateOrderNumber();
+  } catch (error) {
+    messageApi.open({
+      type: 'error',
+      content: 'Ошибка: ' + error.message,
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const formatQuantityInKg = (quantity, weightPerUnit) => {
     const totalWeight = (quantity * weightPerUnit) / 1000;

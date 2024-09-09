@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, Cascader, message, Typography, Empty } from 'antd';
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, getDocs, updateDoc, doc } from "firebase/firestore";
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
 import PhoneInput from 'react-phone-input-2';
@@ -75,6 +75,7 @@ const Customers = () => {
       await addDoc(collection(db, `organizations/${organizationID}/customers`), {
         ...values,
         product: values.product,  // This will now store the product ID
+        paper: { used: 0, available: 0, remaining: 0 }  // Initialize paper management data
       });
       message.success('Клиент успешно добавлен!');
       setIsModalVisible(false);
@@ -136,6 +137,16 @@ const Customers = () => {
       title: 'Цена (сум)',
       dataIndex: 'price',
       key: 'price',
+    },
+    {
+      title: 'Использованная бумага (кг)',
+      dataIndex: ['paper', 'used'],  // Access the paper used data
+      key: 'paperUsed',
+    },
+    {
+      title: 'Доступная бумага (кг)',
+      dataIndex: ['paper', 'available'],  // Access the paper available data
+      key: 'paperAvailable',
     },
   ];
 

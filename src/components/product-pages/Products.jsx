@@ -7,7 +7,7 @@ import { useOutletContext } from 'react-router-dom';
 const Products = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [materialTypes, setMaterialTypes] = useState([]); // Changed to materialTypes
+  const [materialTypes, setMaterialTypes] = useState([]); // Fetch material types
   const [isProductModalVisible, setIsProductModalVisible] = useState(false);
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [form] = Form.useForm();
@@ -15,7 +15,7 @@ const Products = () => {
   const { organizationID } = useOutletContext();
 
   useEffect(() => {
-    const fetchProductsCategoriesAndMaterialTypes = async () => { // Updated function name
+    const fetchProductsCategoriesAndMaterialTypes = async () => {
       if (organizationID) {
         try {
           // Fetch products
@@ -28,7 +28,7 @@ const Products = () => {
           const categoriesData = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setCategories(categoriesData);
 
-          // Fetch material types instead of materials
+          // Fetch material types (for paper management)
           const materialTypesSnapshot = await getDocs(collection(db, `organizations/${organizationID}/material-types`));
           const materialTypesData = materialTypesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setMaterialTypes(materialTypesData);
@@ -38,7 +38,7 @@ const Products = () => {
       }
     };
 
-    fetchProductsCategoriesAndMaterialTypes(); // Updated function call
+    fetchProductsCategoriesAndMaterialTypes();
   }, [organizationID]);
 
   const showProductModal = () => {
@@ -115,6 +115,12 @@ const Products = () => {
       key: 'materialUsage',
       render: (materialUsage) => `${materialUsage} гр`,
     },
+    {
+      title: 'Бумага, необходимая для производства (гр)',
+      dataIndex: 'requiredPaper',
+      key: 'requiredPaper',
+      render: (requiredPaper) => `${requiredPaper} гр`,
+    },
   ];
 
   return (
@@ -161,6 +167,15 @@ const Products = () => {
             </Select>
           </Form.Item>
           <Form.Item name="materialUsage" label="Расход материала за 1 ед. (грамм)" rules={[{ required: true, message: 'Пожалуйста, введите расход материала за 1 ед.' }]}>
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          {/* New Field for Paper Required */}
+          <Form.Item
+            name="requiredPaper"
+            label="Бумага, необходимая для производства (гр)"
+            rules={[{ required: true, message: 'Пожалуйста, введите количество бумаги, необходимой для производства (гр)' }]}
+          >
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
         </Form>

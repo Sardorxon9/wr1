@@ -16,6 +16,7 @@ import {
   MenuOutlined,
   CloseOutlined,
   CodeSandboxOutlined,
+  BoxPlotOutlined,
 } from '@ant-design/icons';
 import './mainPage.css';
 
@@ -174,7 +175,12 @@ const MainPage = () => {
     },
     {
       key: '9',
-      icon: <LogoutOutlined />,
+      icon: <BoxPlotOutlined />,
+      label: <Link to="/mainpage/paper_manage" onClick={() => setDrawerVisible(false)}>Бумаги</Link>,
+    },
+    {
+      key: '10',
+      icon: <UserOutlined />,
       label: <Link to="/mainpage/test" onClick={() => setDrawerVisible(false)}>Test</Link>,
     },
   ];
