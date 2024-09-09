@@ -19,62 +19,65 @@ const RegistrationOwner = () => {
 
   const navigate = useNavigate(); 
 
-  const handleRegister = async (values) => {
-    setLoading(true);
-    try {
-      // Create a new user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
+// Inside RegistrationOwner.jsx
+const handleRegister = async (values) => {
+  setLoading(true);
+  try {
+    // Create a new user in Firebase Auth
+    const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+    const user = userCredential.user;
 
-      if (user) {
-        // Create the organization document in Firestore
-        const organizationData = {
-          name: values.organization,
-        };
+    if (user) {
+      // Create the organization document in Firestore
+      const organizationData = {
+        name: values.organization,
+      };
 
-        // Create organization in Firestore and get the organization ID
-        const orgID = await createOrganization(user.uid, organizationData);
+      // Create organization in Firestore and get the organization ID
+      const orgID = await createOrganization(user.uid, organizationData);
 
-        // Define subcollections (without creating any document)
-        const subCollections = ['members', 'products', 'product-categories', 'orders', 'business-details', 'customers', 'inventory', 'paper-control', 'agencies'];
+      // Define subcollections (paper-control and agencies included)
+      const subCollections = ['members', 'products', 'product-categories', 'orders', 'business-details', 'customers', 'inventory', 'paper-control', 'agencies'];
 
-        subCollections.forEach(async subCol => {
-          // Firestore doesn't show empty collections in the console, but the collections exist programmatically
-          collection(db, `organizations/${orgID}/${subCol}`);
-        });
-
-        // Create the owner user data in Firestore
-        const ownerUserData = {
-          userID: user.uid,
-          fullName: `${values.firstName} ${values.lastName}`,
-          email: values.email,
-          dateAccountCreated: serverTimestamp(), // Here we use serverTimestamp to get the current time
-          organization: values.organization,
-          organizationID: orgID,
-        };
-
-        // Save owner user data in the "owner-users" collection
-        await setDoc(doc(db, 'owner-users', user.uid), ownerUserData);
-
-        // Display success notification
-        notification.success({
-          message: 'Регистрация успешна',
-          description: 'Вы успешно зарегистрированы!',
-        });
-
-        // Navigate to the homepage
-        navigate("/");
-      }
-    } catch (error) {
-      // Display error notification
-      notification.error({
-        message: 'Ошибка регистрации',
-        description: error.message,
+      subCollections.forEach(async subCol => {
+        // Instead of just referencing, create a dummy document and delete it to show collection in Firestore UI
+        const subColRef = collection(db, `organizations/${orgID}/${subCol}`);
+        await setDoc(doc(subColRef), {});
+        // Optionally: Delete the created empty doc if you want empty collections but visible in Firestore UI
       });
-    } finally {
-      setLoading(false);
+
+      // Create the owner user data in Firestore
+      const ownerUserData = {
+        userID: user.uid,
+        fullName: `${values.firstName} ${values.lastName}`,
+        email: values.email,
+        dateAccountCreated: serverTimestamp(),
+        organization: values.organization,
+        organizationID: orgID,
+      };
+
+      // Save owner user data in the "owner-users" collection
+      await setDoc(doc(db, 'owner-users', user.uid), ownerUserData);
+
+      // Success notification
+      notification.success({
+        message: 'Регистрация успешна',
+        description: 'Вы успешно зарегистрированы!',
+      });
+
+      // Navigate to home or dashboard
+      navigate("/");
     }
-  };
+  } catch (error) {
+    notification.error({
+      message: 'Ошибка регистрации',
+      description: error.message,
+    });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const onFinishFailed = (errorInfo) => {
     console.log('Failed:', errorInfo);

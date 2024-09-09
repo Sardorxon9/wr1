@@ -1,283 +1,211 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Modal, Progress, InputNumber, message,Input, Select, Empty } from 'antd';
-import { collection, doc, addDoc, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
-import { DeleteOutlined } from '@ant-design/icons';
-import { db } from './components/login-signUp/firebase'; // Adjust the import path
+import { Button, Card, Modal, Progress, InputNumber, Input, message, Select, Empty } from 'antd';
+import { collection, doc, addDoc, getDoc, updateDoc, getDocs } from 'firebase/firestore';
+import { useOutletContext } from 'react-router-dom';
+import { db } from './components/login-signUp/firebase';
 import PaperCard from './PaperCard';
 
-const Test = ({ organizationID }) => {
+const Test = () => {
   const [rolls, setRolls] = useState([]);
-  const [agencies, setAgencies] = useState([]);
   const [selectedRoll, setSelectedRoll] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [sendAmount, setSendAmount] = useState(0);
   const [agencyID, setAgencyID] = useState('');
-  const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [newRollWeight, setNewRollWeight] = useState(0);
-  const [newRollName, setNewRollName] = useState('');
   const [createAgencyModalVisible, setCreateAgencyModalVisible] = useState(false);
+  const [createRollModalVisible, setCreateRollModalVisible] = useState(false); // Modal for creating a new roll
   const [newAgencyName, setNewAgencyName] = useState('');
+  const [agencies, setAgencies] = useState([]);
+  const [newRollName, setNewRollName] = useState(''); // New paper roll name
+  const [newRollWeight, setNewRollWeight] = useState(0); // New paper roll weight
 
-  // Fetch paper rolls for the organization
-  const fetchPaperRolls = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, `organizations/${organizationID}/paper-control`));
-      const paperRolls = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        paperCards: doc.data().paperCards || [], // Ensure paperCards is an array
-      }));
-      setRolls(paperRolls);
-    } catch (error) {
-      message.error('Error fetching paper rolls');
-    }
-  };
+  const { organizationID } = useOutletContext(); // Access the organizationID
 
-  // Fetch existing agencies
-  const fetchAgencies = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, `organizations/${organizationID}/agencies`));
-      const agencyList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setAgencies(agencyList);
-    } catch (error) {
-      message.error('Error fetching agencies');
-    }
-  };
-
-  useEffect(() => {
-    fetchPaperRolls();
-    fetchAgencies();
-  }, [organizationID]);
-
-  // Handle creating a new paper roll
-  const handleCreateRoll = async () => {
-    if (newRollWeight > 0 && newRollName) {
+  // Fetch paper rolls and agencies when the component mounts or organizationID changes
+// Fetch paper rolls and ensure you use Firestore-generated doc.id
+useEffect(() => {
+  const fetchData = async () => {
+    if (organizationID) {
       try {
-        const newRoll = {
-          name: newRollName,
-          total: newRollWeight,
-          used: 0,
-          remaining: newRollWeight,
-          paperCards: [],
-        };
-  
-        // Use organizationID in the path
-        if (!organizationID) {
-          console.error('Organization ID is missing or undefined');
-          message.error('Organization ID is missing');
-          return;
-        }
-  
-        await addDoc(collection(db, `organizations/${organizationID}/paper-control`), newRoll);
-  
-        fetchPaperRolls();
-        setCreateModalVisible(false);
-        setNewRollWeight(0);
-        setNewRollName('');
-        message.success('New paper roll created successfully');
+        const paperRollsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/paper-control`));
+        const paperRollsData = paperRollsSnapshot.docs.map(doc => ({
+          id: doc.id,  // Use Firestore's doc.id as the document identifier
+          ...doc.data()
+        }));
+        setRolls(paperRollsData);
+
+        const agenciesSnapshot = await getDocs(collection(db, `organizations/${organizationID}/agencies`));
+        const agenciesData = agenciesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setAgencies(agenciesData);
       } catch (error) {
-        message.error('Error creating paper roll');
+        message.error('Ошибка при загрузке данных: ' + error.message);
       }
-    } else {
-      message.error('Please provide a valid roll name and weight');
-    }
-  };
-  
-
-  // Handle creating a new printing agency
-  const handleCreateAgency = async () => {
-    if (newAgencyName) {
-      try {
-        const newAgency = {
-          name: newAgencyName,
-        };
-
-        await addDoc(collection(db, `organizations/${organizationID}/agencies`), newAgency);
-
-        // Refetch agencies after creating a new one
-        fetchAgencies();
-
-        setCreateAgencyModalVisible(false);
-        setNewAgencyName('');
-        message.success('New printing agency created successfully');
-      } catch (error) {
-        message.error('Error creating printing agency');
-      }
-    } else {
-      message.error('Please provide a valid agency name');
     }
   };
 
-  // Confirm the paper assignment to an agency
-  const handleConfirmSend = async () => {
+  fetchData();
+}, [organizationID]);
+
+
+  // Handle assigning unprinted paper to an agency and creating a new paper card
+  const handleAssignToAgency = async () => {
     if (sendAmount > 0 && selectedRoll && agencyID) {
       try {
-        const newRemaining = selectedRoll.remaining - sendAmount;
+        const newPaperCardID = `${selectedRoll.id}-${agencyID}-${Date.now()}`;
+        const updatedPaperCards = selectedRoll.paperCards ? [...selectedRoll.paperCards] : [];
+  
         const newPaperCard = {
-          id: selectedRoll.id + '-' + (selectedRoll.paperCards.length + 1),
+          id: newPaperCardID,
           agencyID,
           sent: sendAmount,
           printed: 0,
           remaining: sendAmount,
           received: [],
         };
-
+  
+        updatedPaperCards.push(newPaperCard);
+  
+        // Update Firestore with the new paper card and roll information
+        const rollRef = doc(db, `organizations/${organizationID}/paper-control`, selectedRoll.id);
+        await updateDoc(rollRef, {
+          remaining: selectedRoll.remaining - sendAmount,
+          paperCards: updatedPaperCards,  // Update paper cards array with the new paper card
+        });
+  
+        // Update state after successful Firestore update
         const updatedRolls = rolls.map((roll) =>
           roll.id === selectedRoll.id
             ? {
                 ...roll,
-                remaining: newRemaining,
-                used: roll.total - newRemaining,
-                paperCards: [...roll.paperCards, newPaperCard],
+                remaining: roll.remaining - sendAmount,
+                paperCards: updatedPaperCards,
               }
             : roll
         );
-
-        // Update Firestore with the new data
-        const rollRef = doc(db, `organizations/${organizationID}/paper-control`, selectedRoll.id);
-        await updateDoc(rollRef, {
-          remaining: newRemaining,
-          used: selectedRoll.total - newRemaining,
-          paperCards: updatedRolls.find(roll => roll.id === selectedRoll.id).paperCards,
-        });
-
+  
         setRolls(updatedRolls);
         setModalVisible(false);
         setSendAmount(0);
-        message.success('Paper assigned to the agency successfully');
+        message.success('Бумага успешно назначена агентству.');
       } catch (error) {
-        message.error('Error assigning paper');
+        message.error('Ошибка при назначении бумаги.');
+        console.error('Assignment error:', error);
       }
     } else {
-      message.error('Please select an agency and specify the amount');
+      message.error('Пожалуйста, выберите агентство и укажите количество.');
+    }
+  };
+  
+  
+
+  // Handle creating a new printing agency
+  const handleCreateAgency = async () => {
+    if (newAgencyName) {
+      try {
+        await addDoc(collection(db, `organizations/${organizationID}/agencies`), {
+          name: newAgencyName,
+        });
+        setCreateAgencyModalVisible(false);
+        setNewAgencyName('');
+        message.success('Агентство успешно создано.');
+        const agenciesSnapshot = await getDocs(collection(db, `organizations/${organizationID}/agencies`));
+        const agenciesData = agenciesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setAgencies(agenciesData);
+      } catch (error) {
+        message.error('Ошибка при создании агентства.');
+      }
+    } else {
+      message.error('Введите название агентства.');
     }
   };
 
-  // Handle deleting a paper roll
-  const handleDeleteRoll = async (rollId) => {
+  // Handle creating a new paper roll
+// Handle creating a new paper roll
+const handleCreateRoll = async () => {
+  if (newRollName && newRollWeight > 0) {
     try {
-      const rollRef = doc(db, `organizations/${organizationID}/paper-control`, rollId);
-      await deleteDoc(rollRef);
-      message.success('Paper roll deleted successfully');
-      fetchPaperRolls(); // Refresh paper rolls list after deletion
+      // Create a new unprinted paper roll in the Firestore collection
+      await addDoc(collection(db, `organizations/${organizationID}/paper-control`), {
+        name: newRollName,
+        total: newRollWeight,
+        used: 0,
+        remaining: newRollWeight,
+        paperCards: [], // Initialize paper cards as an empty array
+      });
+      setCreateRollModalVisible(false);
+      setNewRollName('');
+      setNewRollWeight(0);
+      message.success('Новый рулон бумаги успешно создан.');
+      // Fetch the updated list of rolls
+      const paperRollsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/paper-control`));
+      const paperRollsData = paperRollsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRolls(paperRollsData);
     } catch (error) {
-      message.error('Error deleting paper roll');
+      message.error('Ошибка при создании рулона бумаги.');
     }
-  };
+  } else {
+    message.error('Введите название и вес рулона бумаги.');
+  }
+};
+
 
   return (
     <div>
-      {/* Button to create a new paper roll */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-        <Button type="primary" onClick={() => setCreateModalVisible(true)}>
-          Создать новый рулон бумаги
-        </Button>
-        {/* Button to create a new printing agency */}
-        <Button type="primary" onClick={() => setCreateAgencyModalVisible(true)} style={{ marginLeft: 10 }}>
-          Зарегистрировать агентство
-        </Button>
-      </div>
+      {/* Button to create a new printing agency */}
+      <Button type="primary" onClick={() => setCreateAgencyModalVisible(true)} style={{ marginBottom: 20 }}>
+        Зарегистрировать агентство
+      </Button>
 
-      {/* Render the paper roll tabs */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
-        {rolls.length > 0 ? (
-          rolls.map((roll) => (
+      {/* Button to create a new paper roll */}
+      <Button type="primary" onClick={() => setCreateRollModalVisible(true)} style={{ marginBottom: 20 }}>
+        Зарегистрировать новый рулон бумаги
+      </Button>
+
+      {/* Render unprinted paper roll cards as tabs */}
+      {rolls.length === 0 ? (
+        <Empty description="Рулоны бумаги отсутствуют" />
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
+          {rolls.map((roll) => (
             <Card
               key={roll.id}
-              style={{ width: 250, border: '1px solid #e8e8e8', padding: 20, textAlign: 'center', position: 'relative' }}
+              style={{
+                width: 250,
+                border: '1px solid #e8e8e8',
+                padding: 20,
+                textAlign: 'center',
+                borderColor: selectedRoll && selectedRoll.id === roll.id ? '#1890ff' : '#e8e8e8',
+              }}
               onClick={() => setSelectedRoll(roll)}
             >
-              {/* Trash icon for deleting paper roll */}
-              <DeleteOutlined
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '10px',
-                  cursor: 'pointer',
-                  color: '#ff4d4f',
-                }}
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent triggering card click event
-                  handleDeleteRoll(roll.id);
-                }}
-              />
-              <h3>{roll.name || `Бумага №${roll.id}`}</h3>
-              <p>без печати</p>
+              <h3>{roll.name}</h3>
               <Progress percent={(roll.used / roll.total) * 100} status="active" showInfo={false} />
               <p>Использовано: {roll.used} кг</p>
               <p>Остаток: {roll.remaining} кг</p>
-              <Button type="default" onClick={() => setModalVisible(true)}>
-                Вывести
-              </Button>
+              <Button onClick={() => setModalVisible(true)}>Вывести</Button>
             </Card>
-          ))
-        ) : (
-          <Empty description="No Paper Rolls Available" />
-        )}
-      </div>
-
-      {/* Render paper cards for the selected roll */}
-      {selectedRoll && (
-        <div style={{ marginTop: 40 }}>
-          {selectedRoll.paperCards.length > 0 ? (
-            selectedRoll.paperCards.map((paper) => (
-              <PaperCard
-                key={paper.id}
-                paper={paper}
-                organizationID={organizationID}
-                fetchPaperRolls={fetchPaperRolls}
-              />
-            ))
-          ) : (
-            <Empty description="No Paper Cards for This Roll" />
-          )}
+          ))}
         </div>
       )}
 
-      {/* Modal for creating a new paper roll */}
-      <Modal
-        title="Создать новый рулон бумаги"
-        visible={createModalVisible}
-        onOk={handleCreateRoll}
-        onCancel={() => setCreateModalVisible(false)}
-      >
-        <p>Введите название рулона:</p>
-        <Input
-          placeholder="Название рулона"
-          value={newRollName}
-          onChange={(e) => setNewRollName(e.target.value)}
-        />
-        <br /><br />
-        <p>Введите вес рулона (в кг):</p>
-        <InputNumber
-          min={1}
-          value={newRollWeight}
-          onChange={(value) => setNewRollWeight(value)}
-          placeholder="Вес рулона (кг)"
-          style={{ width: '100%' }}
-        />
-      </Modal>
-
-      {/* Modal for creating a new printing agency */}
-      <Modal
-        title="Зарегистрировать агентство"
-        visible={createAgencyModalVisible}
-        onOk={handleCreateAgency}
-        onCancel={() => setCreateAgencyModalVisible(false)}
-      >
-        <p>Введите название агентства:</p>
-        <Input
-          placeholder="Название агентства"
-          value={newAgencyName}
-          onChange={(e) => setNewAgencyName(e.target.value)}
-        />
-      </Modal>
+      {/* Render PaperCards for the selected roll */}
+      {selectedRoll && selectedRoll.paperCards && (
+        <div style={{ marginTop: 40 }}>
+          {selectedRoll.paperCards.map((paper, index) => (
+            <PaperCard
+              key={index}
+              paper={paper}
+              organizationID={organizationID}
+              fetchPaperRolls={() => setSelectedRoll(null)} // Reset selected roll after operation
+            />
+          ))}
+        </div>
+      )}
 
       {/* Modal for assigning paper to an agency */}
       <Modal
-        title="Сколько кг вы хотите вывести?"
+        title="Вывести бумагу в агентство"
         visible={modalVisible}
-        onOk={handleConfirmSend}
+        onOk={handleAssignToAgency}
         onCancel={() => setModalVisible(false)}
       >
         <InputNumber
@@ -285,6 +213,8 @@ const Test = ({ organizationID }) => {
           max={selectedRoll ? selectedRoll.remaining : 0}
           value={sendAmount}
           onChange={(value) => setSendAmount(value)}
+          placeholder="Введите количество (кг)"
+          style={{ width: '100%' }}
         /> кг
         <br /><br />
         <Select
@@ -297,8 +227,45 @@ const Test = ({ organizationID }) => {
           ))}
         </Select>
       </Modal>
+
+      {/* Modal for creating a new printing agency */}
+      <Modal
+        title="Зарегистрировать агентство"
+        visible={createAgencyModalVisible}
+        onOk={handleCreateAgency}
+        onCancel={() => setCreateAgencyModalVisible(false)}
+      >
+        <Input
+          placeholder="Название агентства"
+          value={newAgencyName}
+          onChange={(e) => setNewAgencyName(e.target.value)}
+        />
+      </Modal>
+
+      {/* Modal for creating a new paper roll */}
+      <Modal
+        title="Зарегистрировать новый рулон бумаги"
+        visible={createRollModalVisible}
+        onOk={handleCreateRoll}
+        onCancel={() => setCreateRollModalVisible(false)}
+      >
+        <Input
+          placeholder="Название рулона"
+          value={newRollName}
+          onChange={(e) => setNewRollName(e.target.value)}
+          style={{ marginBottom: '10px' }}
+        />
+        <InputNumber
+          min={1}
+          value={newRollWeight}
+          onChange={(value) => setNewRollWeight(value)}
+          placeholder="Вес рулона (кг)"
+          style={{ width: '100%' }}
+        /> кг
+      </Modal>
     </div>
   );
 };
 
 export default Test;
+

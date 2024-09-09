@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Progress, Button, List, Modal, InputNumber, Input, message, Select, DatePicker } from 'antd';
-import { doc, updateDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
-import { DeleteOutlined } from '@ant-design/icons';
+import { Card, Progress, Button, List, Modal, InputNumber, Select, DatePicker, message } from 'antd';
+import { doc, updateDoc, getDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'; // Add collection & getDocs
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { db } from './components/login-signUp/firebase';
 import moment from 'moment';
-import { db } from './components/login-signUp/firebase'; // Adjust the import path
 
 const PaperCard = ({ paper, organizationID, fetchPaperRolls }) => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -12,20 +12,25 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls }) => {
   const [date, setDate] = useState(moment());
   const [clients, setClients] = useState([]);
 
-  // Fetch list of clients from Firestore
+  // Fetch list of clients from Firestore using organizationID
   const fetchClients = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, `organizations/${organizationID}/customers`));
-      const clientsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setClients(clientsList);
+      if (organizationID) {
+        const querySnapshot = await getDocs(collection(db, `organizations/${organizationID}/customers`)); // Ensure correct path
+        const clientsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setClients(clientsList);
+      } else {
+        message.error('Отсутствует ID организации.');
+      }
     } catch (error) {
-      message.error('Error fetching clients');
+      console.error('Ошибка при получении данных клиентов:', error); // Log error for debugging
+      message.error('Ошибка при получении данных клиентов.');
     }
   };
 
   useEffect(() => {
-    fetchClients();
-  }, []);
+    fetchClients(); // Fetch clients when component mounts
+  }, [organizationID]);
 
   // Handle receiving new printed paper
   const handleConfirmReceive = async () => {
@@ -35,51 +40,63 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls }) => {
         amount: receivedAmount,
         date: date.format('DD MMM, YYYY'),
       };
-
+  
       try {
-        const updatedPaper = {
-          ...paper,
-          received: [...paper.received, newReceivedItem],
-        };
-
-        // Update Firestore with the received data
-        const paperRef = doc(db, `organizations/${organizationID}/paper-control`, paper.id);
-        await updateDoc(paperRef, {
-          received: updatedPaper.received,
-        });
-
-        // Update the customer's available paper stock in Firestore
-        const clientRef = doc(db, `organizations/${organizationID}/customers`, clientName);
-        const clientSnapshot = await clientRef.get();
-        const clientData = clientSnapshot.data();
-        const updatedClientPaper = (clientData.paper?.available || 0) + receivedAmount;
-
-        await updateDoc(clientRef, {
-          'paper.available': updatedClientPaper,
-        });
-
-        setModalVisible(false);
-        setReceivedAmount(0);
-        setClientName('');
-        setDate(moment());
-        message.success('Paper received successfully');
+        // Log the paper ID for debugging
+        console.log('Using Firestore document ID:', paper.id);
+  
+        const rollRef = doc(db, `organizations/${organizationID}/paper-control`, paper.id);
+        const paperSnapshot = await getDoc(rollRef);
+  
+        if (paperSnapshot.exists()) {
+          const updatedPaper = {
+            ...paper,
+            received: [...(paper.received || []), newReceivedItem],
+            remaining: paper.remaining - receivedAmount,
+          };
+  
+          // Update Firestore with the received data
+          await updateDoc(rollRef, {
+            received: updatedPaper.received,
+            remaining: updatedPaper.remaining,
+          });
+  
+          // Update the customer's available paper stock in Firestore
+          const clientRef = doc(db, `organizations/${organizationID}/customers`, clientName);
+          const clientSnapshot = await getDoc(clientRef);
+          const clientData = clientSnapshot.data();
+          const updatedClientPaper = (clientData.paper?.available || 0) + receivedAmount;
+  
+          await updateDoc(clientRef, {
+            'paper.available': updatedClientPaper,
+          });
+  
+          setModalVisible(false);
+          setReceivedAmount(0);
+          setClientName('');
+          setDate(moment());
+          message.success('Бумага успешно принята.');
+          fetchPaperRolls();
+        } else {
+          message.error('Рулон бумаги не существует.');
+        }
       } catch (error) {
-        message.error('Error receiving paper');
+        message.error('Ошибка при приеме бумаги.');
       }
     } else {
-      message.error('Please select a client and specify the amount');
+      message.error('Выберите клиента и укажите количество.');
     }
   };
+  
 
-  // Handle deleting a paper roll
   const handleDeleteRoll = async () => {
     try {
       const paperRef = doc(db, `organizations/${organizationID}/paper-control`, paper.id);
       await deleteDoc(paperRef);
-      message.success('Paper roll deleted successfully');
-      fetchPaperRolls(); // Refresh paper rolls list after deletion
+      message.success('Рулон бумаги успешно удален.');
+      fetchPaperRolls();
     } catch (error) {
-      message.error('Error deleting paper roll');
+      message.error('Ошибка при удалении рулона бумаги.');
     }
   };
 
@@ -90,12 +107,10 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls }) => {
         margin: '20px auto',
         border: '1px solid #e8e8e8',
         borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
         padding: '20px',
         position: 'relative',
       }}
     >
-      {/* Trash icon to delete paper roll */}
       <DeleteOutlined
         style={{
           position: 'absolute',
@@ -106,19 +121,27 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls }) => {
         }}
         onClick={handleDeleteRoll}
       />
+
       <h3>Бумага №{paper.id}</h3>
       <p>Digital Print Solutions</p>
-      <Progress percent={(paper.sent / paper.remaining) * 100} status="active" showInfo={false} />
+
+      <Progress
+        percent={(paper.sent / paper.total) * 100}
+        status="active"
+        showInfo={false}
+        strokeColor="#1890ff"
+      />
+
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
         <p>Отправлено: {paper.sent} кг</p>
-        <p>Распечатано: {paper.printed} кг</p>
+        <p>Распечатано: {(paper.received || []).reduce((sum, item) => sum + item.amount, 0)} кг</p>
         <p>Остаток: {paper.remaining} кг</p>
       </div>
-      <Button type="primary" onClick={() => setModalVisible(true)}>
+
+      <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
         Добавить приход
       </Button>
 
-      {/* Modal for receiving paper */}
       <Modal
         title="Добавить приход"
         visible={modalVisible}
@@ -127,20 +150,26 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls }) => {
       >
         <p>Выберите клиента:</p>
         <Select
+          placeholder="Выберите клиента"
           style={{ width: '100%' }}
-          placeholder="Клиент"
           onChange={(value) => setClientName(value)}
         >
           {clients.map(client => (
-            <Select.Option key={client.id} value={client.id}>{client.name}</Select.Option>
+            <Select.Option key={client.id} value={client.id}>
+              {client.brand} {/* Display 'brand' instead of client ID */}
+            </Select.Option>
           ))}
         </Select>
+
         <p>Сколько кг вы хотите добавить?</p>
         <InputNumber
           min={1}
           value={receivedAmount}
           onChange={(value) => setReceivedAmount(value)}
+          placeholder="Введите количество (кг)"
+          style={{ width: '100%' }}
         /> кг
+
         <p>Дата:</p>
         <DatePicker
           style={{ width: '100%' }}
@@ -150,15 +179,14 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls }) => {
         />
       </Modal>
 
-      {/* List of received items */}
       <List
         itemLayout="horizontal"
-        dataSource={paper.received}
-        renderItem={(item) => (
+        dataSource={paper.received || []}
+        renderItem={item => (
           <List.Item>
             <List.Item.Meta
-              title={item.client}
-              description={`${item.amount} кг - ${item.date}`}
+              title={`Клиент: ${item.client}`}
+              description={`Получено: ${item.amount} кг, Дата: ${item.date}`}
             />
           </List.Item>
         )}
