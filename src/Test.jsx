@@ -60,12 +60,17 @@ const Test = ({ organizationID }) => {
           remaining: newRollWeight,
           paperCards: [],
         };
-
+  
+        // Use organizationID in the path
+        if (!organizationID) {
+          console.error('Organization ID is missing or undefined');
+          message.error('Organization ID is missing');
+          return;
+        }
+  
         await addDoc(collection(db, `organizations/${organizationID}/paper-control`), newRoll);
-
-        // Refetch paper rolls after creating a new one
+  
         fetchPaperRolls();
-
         setCreateModalVisible(false);
         setNewRollWeight(0);
         setNewRollName('');
@@ -77,6 +82,7 @@ const Test = ({ organizationID }) => {
       message.error('Please provide a valid roll name and weight');
     }
   };
+  
 
   // Handle creating a new printing agency
   const handleCreateAgency = async () => {

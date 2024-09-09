@@ -17,6 +17,8 @@ import Materials from './components/materials/Materials'; // Import the new Mate
 import Test from './Test';
 import './App.css';
 
+const { organizationID } = useContext(OrganizationContext);
+
 export default function App() {
   return (
     <Router>
@@ -34,7 +36,7 @@ export default function App() {
           <Route path="employees" element={<Employees />} />
           <Route path="products" element={<Products />} />
           <Route path="customers" element={<Customers />} />
-          <Route path="test" element={<Test />} />
+          <Route path="test" element={<Test organizationID={organizationID} />} />
           <Route path="materials" element={<Materials />} /> {/* Add this route */}
         </Route>
         <Route path="/error" element={<ErrorPage />} />
