@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Modal, Progress, InputNumber, Input, message, Select, Empty } from 'antd';
+import { Button, Card, Modal, Progress, InputNumber,Input, message, Select, Empty } from 'antd';
 import { collection, doc, addDoc, getDoc, updateDoc, getDocs } from 'firebase/firestore';
 import { useOutletContext } from 'react-router-dom';
 import { db } from './components/login-signUp/firebase';
@@ -45,74 +45,60 @@ const Test = () => {
   }, [organizationID]);
 
   // Handle assigning unprinted paper to an agency
-  // Handle assigning unprinted paper to an agency
-// Handle assigning unprinted paper to an agency
-const handleAssignToAgency = async () => {
-  if (sendAmount > 0 && selectedRoll && agencyID) {
-    try {
-      // Generate new paper card ID for the agency (this is only for internal use, not Firestore lookup)
-      const newPaperCardID = `${selectedRoll.id}-${agencyID}-${Date.now()}`; 
+  const handleAssignToAgency = async () => {
+    if (sendAmount > 0 && selectedRoll && agencyID) {
+      try {
+        const newPaperCardID = `${selectedRoll.id}-${agencyID}-${Date.now()}`; 
 
-      const updatedPaperCards = selectedRoll.paperCards ? [...selectedRoll.paperCards] : [];
+        const updatedPaperCards = selectedRoll.paperCards ? [...selectedRoll.paperCards] : [];
 
-      const newPaperCard = {
-        id: newPaperCardID,
-        agencyID,
-        sent: sendAmount,
-        printed: 0,
-        remaining: sendAmount,
-        received: [],
-      };
+        const newPaperCard = {
+          id: newPaperCardID,
+          agencyID,
+          sent: sendAmount,
+          printed: 0,
+          remaining: sendAmount,
+          received: [],
+        };
 
-      updatedPaperCards.push(newPaperCard);
+        updatedPaperCards.push(newPaperCard);
 
-      // Check if the selected roll exists in Firestore
-      const rollRef = doc(db, `organizations/${organizationID}/paper-control`, selectedRoll.id);
+        const rollRef = doc(db, `organizations/${organizationID}/paper-control`, selectedRoll.id);
 
-      // Debugging: Log the rollRef path and selectedRoll.id
-      console.log('Fetching document from Firestore using roll ID:', selectedRoll.id);
-      console.log('Document reference path:', rollRef.path);
+        const rollSnapshot = await getDoc(rollRef);
 
-      const rollSnapshot = await getDoc(rollRef);
+        if (!rollSnapshot.exists()) {
+          message.error('Рулон бумаги не существует.');
+          return;
+        }
 
-      if (!rollSnapshot.exists()) {
-        // If the document doesn't exist, log the document ID and show an error
-        message.error('Рулон бумаги не существует.');
-        console.error('Using Firestore document ID:', selectedRoll.id);
-        return;
+        await updateDoc(rollRef, {
+          remaining: selectedRoll.remaining - sendAmount,
+          paperCards: updatedPaperCards,
+        });
+
+        const updatedRolls = rolls.map((roll) =>
+          roll.id === selectedRoll.id
+            ? {
+                ...roll,
+                remaining: roll.remaining - sendAmount,
+                paperCards: updatedPaperCards,
+              }
+            : roll
+        );
+
+        setRolls(updatedRolls);
+        setModalVisible(false);
+        setSendAmount(0);
+        message.success('Бумага успешно назначена агентству.');
+      } catch (error) {
+        message.error('Ошибка при назначении бумаги.');
+        console.error('Assignment error:', error);
       }
-
-      // If roll exists, update it in Firestore
-      await updateDoc(rollRef, {
-        remaining: selectedRoll.remaining - sendAmount,
-        paperCards: updatedPaperCards,
-      });
-
-      // Update the local state with the new paper card
-      const updatedRolls = rolls.map((roll) =>
-        roll.id === selectedRoll.id
-          ? {
-              ...roll,
-              remaining: roll.remaining - sendAmount,
-              paperCards: updatedPaperCards,
-            }
-          : roll
-      );
-
-      setRolls(updatedRolls);
-      setModalVisible(false);
-      setSendAmount(0);
-      message.success('Бумага успешно назначена агентству.');
-    } catch (error) {
-      message.error('Ошибка при назначении бумаги.');
-      console.error('Assignment error:', error);
+    } else {
+      message.error('Пожалуйста, выберите агентство и укажите количество.');
     }
-  } else {
-    message.error('Пожалуйста, выберите агентство и укажите количество.');
-  }
-};
-
-
+  };
 
   // Handle creating a new printing agency
   const handleCreateAgency = async () => {
@@ -163,11 +149,11 @@ const handleAssignToAgency = async () => {
 
   return (
     <div>
-      <Button type="primary" onClick={() => setCreateAgencyModalVisible(true)} style={{ marginBottom: 20 }}>
+      <Button type="primary" ghost onClick={() => setCreateAgencyModalVisible(true)} style={{ marginBottom: 20, marginRight : 8, }}>
         Зарегистрировать агентство
       </Button>
 
-      <Button type="primary" onClick={() => setCreateRollModalVisible(true)} style={{ marginBottom: 20 }}>
+      <Button type="primary"  onClick={() => setCreateRollModalVisible(true)} style={{ marginBottom: 20 }}>
         Зарегистрировать новый рулон бумаги
       </Button>
 
@@ -179,18 +165,44 @@ const handleAssignToAgency = async () => {
             <Card
               key={roll.id}
               style={{
-                width: 250,
+                width: 350,
                 border: '1px solid #e8e8e8',
                 padding: 20,
                 textAlign: 'center',
+                boxShadow: selectedRoll && selectedRoll.id === roll.id ? '0px 4px 12px rgba(0, 0, 0, 0.2)' : '0px 2px 8px rgba(0, 0, 0, 0.1)', // Shadow effect
                 borderColor: selectedRoll && selectedRoll.id === roll.id ? '#1890ff' : '#e8e8e8',
               }}
               onClick={() => setSelectedRoll(roll)}
             >
               <h3>{roll.name}</h3>
-              <Progress percent={(roll.used / roll.total) * 100} status="active" showInfo={false} />
-              <p>Использовано: {roll.used} кг</p>
-              <p>Остаток: {roll.remaining} кг</p>
+              <h4 style={{ fontWeight: '300' }}>Рулон : без печати</h4>
+
+              {/* Progress bar showing how much of the roll has been used */}
+              <Progress
+  percent={((roll.total - roll.remaining) / roll.total) * 100} // This line is still used to determine the width of the progress bar, based on the amount used
+  status="active"
+  strokeColor="#1890ff"
+  format={() => `${roll.total - roll.remaining} кг / ${roll.total} кг`} // Display KG instead of percentage
+/>
+
+              <div style={{width:"100%", display: 'flex', justifyContent: 'space-between' }}>
+                <p>Использовано: {roll.total - roll.remaining} кг</p>
+                <p style={{ color: '#1890ff', paddingLeft:"10%", display: 'flex', alignItems: 'center' }}>
+                  {/* Blue dot before "Остаток" */}
+                  <span
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      backgroundColor: '#1890ff',
+                      borderRadius: '50%',
+                      display: 'inline-block',
+                      marginRight: '5px',
+                    }}
+                  />
+                  Остаток: {roll.remaining} кг
+                </p>
+              </div>
+
               <Button onClick={() => setModalVisible(true)}>Вывести</Button>
             </Card>
           ))}
