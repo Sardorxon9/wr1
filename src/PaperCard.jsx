@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Progress, Button, List, Modal, InputNumber, Select, DatePicker, message } from 'antd';
-import { doc, updateDoc, getDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'; 
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { db } from './components/login-signUp/firebase';
 import moment from 'moment';
@@ -36,42 +36,63 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls }) => {
   const handleConfirmReceive = async () => {
     if (receivedAmount > 0 && clientName) {
       try {
-        const paperRef = doc(db, `organizations/${organizationID}/paper-control`, paper.id);
-        const paperSnapshot = await getDoc(paperRef);
-
-        if (!paperSnapshot.exists()) {
-          message.error('Рулон бумаги не существует.');
-          console.error('Using Firestore document ID:', paper.id);
+        // Extract the roll ID from the `paper.id`. Split by `-` and take the first part (actual roll ID).
+        const [rollId] = paper.id.split('-'); // This will extract only the document ID part
+  
+        // Now, use the extracted roll ID to fetch the correct document from Firestore
+        const paperRef = doc(db, `organizations/${organizationID}/paper-control`, rollId);
+  
+        console.log('Fetching document from Firestore using roll ID:', rollId);
+        console.log('Document reference path:', paperRef.path);
+  
+        let paperSnapshot;
+        try {
+          paperSnapshot = await getDoc(paperRef);
+        } catch (error) {
+          message.error('Ошибка при получении документа из Firestore.');
+          console.error('Error fetching document:', error);
           return;
         }
-
+  
+        // Check if the document exists
+        if (!paperSnapshot.exists()) {
+          message.error('Рулон бумаги не существует.');
+          console.error('Document not found with Firestore ID:', rollId);
+          return;
+        }
+  
+        // Create a new received item
         const newReceivedItem = {
           client: clientName,
           amount: receivedAmount,
           date: date.format('DD MMM, YYYY'),
         };
-
+  
+        // Get the current data for the paper
+        const paperData = paperSnapshot.data();
+  
+        // Update the paper document's `received` array and `remaining` field
         const updatedPaper = {
-          ...paper,
-          received: [...(paper.received || []), newReceivedItem],
-          remaining: paper.remaining - receivedAmount,
+          ...paperData,
+          received: [...(paperData.received || []), newReceivedItem],
+          remaining: paperData.remaining - receivedAmount,
         };
-
+  
         await updateDoc(paperRef, {
           received: updatedPaper.received,
           remaining: updatedPaper.remaining,
         });
-
+  
         // Update customer's available paper stock
         const clientRef = doc(db, `organizations/${organizationID}/customers`, clientName);
         const clientSnapshot = await getDoc(clientRef);
         const clientData = clientSnapshot.data();
         const updatedClientPaper = (clientData.paper?.available || 0) + receivedAmount;
-
+  
         await updateDoc(clientRef, {
           'paper.available': updatedClientPaper,
         });
-
+  
         setModalVisible(false);
         setReceivedAmount(0);
         setClientName('');
@@ -86,7 +107,8 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls }) => {
       message.error('Выберите клиента и укажите количество.');
     }
   };
-
+  
+  
   // Handle deleting a paper roll
   const handleDeleteRoll = async () => {
     try {

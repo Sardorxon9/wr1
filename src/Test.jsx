@@ -46,6 +46,7 @@ const Test = () => {
 
   // Handle assigning unprinted paper to an agency
   // Handle assigning unprinted paper to an agency
+// Handle assigning unprinted paper to an agency
 const handleAssignToAgency = async () => {
   if (sendAmount > 0 && selectedRoll && agencyID) {
     try {
@@ -110,6 +111,7 @@ const handleAssignToAgency = async () => {
     message.error('Пожалуйста, выберите агентство и укажите количество.');
   }
 };
+
 
 
   // Handle creating a new printing agency
