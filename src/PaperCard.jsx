@@ -1,7 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
-import { Card, Progress, Button, List, Modal, InputNumber, Select, DatePicker, message } from 'antd';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { doc, updateDoc, getDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { Card, Progress, Button, Modal, InputNumber, Select, DatePicker, message, List } from 'antd';
+import { doc, updateDoc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from './components/login-signUp/firebase';
 import moment from 'moment';
 
@@ -11,7 +11,8 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls, index }) => {
   const [receivedAmount, setReceivedAmount] = useState(0);
   const [date, setDate] = useState(moment());
   const [clients, setClients] = useState([]);
-  const [agencyName, setAgencyName] = useState(''); // Fetch the dynamic agency name
+  const [agencyName, setAgencyName] = useState('');
+  const [selectedPaperCard, setSelectedPaperCard] = useState(null);
 
   // Fetch agency name from Firestore using agencyID
   useEffect(() => {
@@ -44,178 +45,106 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls, index }) => {
     }
   };
 
-  useEffect(() => {
-    fetchClients();
-  }, [organizationID]);
-
-  // Handle receiving new printed paper
-  const handleConfirmReceive = async () => {
-    if (receivedAmount > 0 && clientName) {
-      try {
-        const [rollId] = paper.id.split('-');
-        const paperRef = doc(db, `organizations/${organizationID}/paper-control`, rollId);
-
-        const paperSnapshot = await getDoc(paperRef);
-        if (!paperSnapshot.exists()) {
-          message.error('Рулон бумаги не существует.');
-          return;
-        }
-
-        const newReceivedItem = {
-          client: clientName,
-          amount: receivedAmount,
-          date: date.format('DD MMM, YYYY'),
-        };
-
-        const paperData = paperSnapshot.data();
-        const updatedPaper = {
-          ...paperData,
-          received: [...(paperData.received || []), newReceivedItem],
-          remaining: paperData.remaining - receivedAmount,
-        };
-
-        await updateDoc(paperRef, {
-          received: updatedPaper.received,
-          remaining: updatedPaper.remaining,
-        });
-
-        const clientRef = doc(db, `organizations/${organizationID}/customers`, clientName);
-        const clientSnapshot = await getDoc(clientRef);
-        const clientData = clientSnapshot.data();
-        const updatedClientPaper = (clientData.paper?.available || 0) + receivedAmount;
-
-        await updateDoc(clientRef, {
-          'paper.available': updatedClientPaper,
-        });
-
-        setModalVisible(false);
-        setReceivedAmount(0);
-        setClientName('');
-        setDate(moment());
-        message.success('Бумага успешно принята.');
-        fetchPaperRolls();
-      } catch (error) {
-        message.error('Ошибка при приеме бумаги.');
-      }
-    } else {
-      message.error('Выберите клиента и укажите количество.');
+  // Handle receiving printed paper from agency
+  const handleClientReceivePaper = async () => {
+    if (!receivedAmount || !clientName || !selectedPaperCard) {
+      message.error('Заполните все поля.');
+      return;
     }
-  };
 
-  // Handle deleting a paper roll
-  const handleDeleteRoll = async () => {
     try {
-      const [rollId] = paper.id.split('-');
-      const paperRef = doc(db, `organizations/${organizationID}/paper-control`, rollId);
-      await deleteDoc(paperRef);
-      message.success('Рулон бумаги успешно удален.');
-      fetchPaperRolls();
-    } catch (error) {
-      message.error('Ошибка при удалении рулона бумаги.');
-    }
-  };
+      const paperRef = doc(db, `organizations/${organizationID}/paper-control`, paper.id);
+      const updatedPaperCards = paper.paperCards.map((card) => {
+        if (card.id === selectedPaperCard.id) {
+          const updatedTotalPrinted = card.total_printed + receivedAmount;
+          const updatedRemaining = card.total_remaining - receivedAmount;
+          const updatedTransactions = [...card.transactions, {
+            clientID: clientName,
+            amount_printed: receivedAmount,
+            date_printed: date.format('YYYY-MM-DD'),
+          }];
+          return {
+            ...card,
+            total_printed: updatedTotalPrinted,
+            total_remaining: updatedRemaining,
+            transactions: updatedTransactions,
+          };
+        }
+        return card;
+      });
 
-  // Render paper transactions (received history)
-  const renderTransactions = () => (
-    <List
-      itemLayout="horizontal"
-      dataSource={paper.received || []}
-      renderItem={item => (
-        <List.Item>
-          <List.Item.Meta
-            title={`${item.client}`}
-            description={`${item.amount} кг — ${item.date}`}
-          />
-        </List.Item>
-      )}
-    />
-  );
+      // Update paper document with the new paperCard details
+      await updateDoc(paperRef, { paperCards: updatedPaperCards });
+
+      // Update customer's paper availability record (assuming it is tracked separately)
+      const clientRef = doc(db, `organizations/${organizationID}/customers`, clientName);
+      const clientSnap = await getDoc(clientRef);
+      const clientData = clientSnap.data();
+      const updatedClientRemaining = clientData.remainingPaper ? clientData.remainingPaper + receivedAmount : receivedAmount;
+      await updateDoc(clientRef, { remainingPaper: updatedClientRemaining });
+
+      message.success('Бумага успешно получена от агентства.');
+      fetchPaperRolls(); // Refresh the data
+    } catch (error) {
+      console.error('Ошибка при получении бумаги от агентства:', error);
+      message.error('Ошибка при получении бумаги от агентства.');
+    }
+
+    setModalVisible(false);
+    setReceivedAmount(0);
+    setClientName('');
+  };
 
   return (
-    <Card
-      style={{
-        width: 500,
-        margin: '20px auto',
-        border: '1px solid #e8e8e8',
-        borderRadius: '8px',
-        padding: '20px',
-        position: 'relative',
-      }}
-    >
-      <DeleteOutlined
-        style={{
-          position: 'absolute',
-          right: '10px',
-          top: '10px',
-          cursor: 'pointer',
-          color: '#ff4d4f',
-        }}
-        onClick={handleDeleteRoll}
+    <Card title={`Агентство: ${agencyName}`} key={index}>
+      <Progress percent={(paper.total_used / paper.total) * 100} status="active" />
+      <p>Осталось: {paper.remaining} кг, Использовано: {paper.used} кг, Всего: {paper.total} кг</p>
+      
+      <Button onClick={() => { setModalVisible(true); fetchClients(); }}>Добавить приход</Button>
+      
+      {/* Display the transaction details in the card */}
+      <List
+        header="Транзакции:"
+        bordered
+        dataSource={paper.transactions || []}
+        renderItem={(transaction) => (
+          <List.Item key={transaction.date_printed}>
+            {`Клиент: ${transaction.clientID}, Напечатано: ${transaction.amount_printed} кг, Дата: ${transaction.date_printed}`}
+          </List.Item>
+        )}
       />
 
-      {/* Title with sequence order */}
-      <h3>{`Бумага №${String(index).padStart(3, '0')}`}</h3>
-
-      {/* Dynamic Agency Name */}
-      <p>{agencyName}</p>
-      <p>{moment(paper.date).format('YYYY.MM.DD')}</p>
-
-      {/* Progress bar */}
-      <Progress
-        percent={((paper.sent - paper.remaining) / paper.sent) * 100}
-        status="active"
-        showInfo={false}
-        strokeColor="#1890ff"
-      />
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-        <p>Отправлено: {paper.sent} кг</p>
-        <p>Распечатано: {(paper.received || []).reduce((sum, item) => sum + item.amount, 0)} кг</p>
-        <p>Остаток: {paper.remaining} кг</p>
-      </div>
-
-      {/* Add "Добавить приход" button */}
-      <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
-        Добавить приход
-      </Button>
-
-      {/* Transactions (received history) */}
-      {renderTransactions()}
-
-      {/* Modal for adding a transaction */}
+      {/* Modal for receiving printed paper from agency */}
       <Modal
-        title="Добавить приход"
+        title="Получить напечатанную бумагу"
         visible={modalVisible}
-        onOk={handleConfirmReceive}
+        onOk={handleClientReceivePaper}
         onCancel={() => setModalVisible(false)}
       >
-        <p>Выберите клиента:</p>
         <Select
-          placeholder="Выберите клиента"
           style={{ width: '100%' }}
+          placeholder="Выберите клиента"
           onChange={(value) => setClientName(value)}
         >
           {clients.map(client => (
-            <Select.Option key={client.id} value={client.id}>
-              {client.brand}
-            </Select.Option>
+            <Select.Option key={client.id} value={client.id}>{client.name}</Select.Option>
           ))}
         </Select>
-
-        <p>Сколько кг вы хотите добавить?</p>
+        <br /><br />
         <InputNumber
           min={1}
+          max={selectedPaperCard ? selectedPaperCard.total_remaining : 0}
           value={receivedAmount}
           onChange={(value) => setReceivedAmount(value)}
           placeholder="Введите количество (кг)"
           style={{ width: '100%' }}
         /> кг
-
-        <p>Дата:</p>
+        <br /><br />
         <DatePicker
           style={{ width: '100%' }}
           value={date}
           onChange={(value) => setDate(value)}
-          defaultValue={moment()}
+          format="YYYY-MM-DD"
         />
       </Modal>
     </Card>
@@ -223,4 +152,3 @@ const PaperCard = ({ paper, organizationID, fetchPaperRolls, index }) => {
 };
 
 export default PaperCard;
-
