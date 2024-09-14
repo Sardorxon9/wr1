@@ -54,7 +54,7 @@ const ManagePaper = () => {
     };
 
     return (
-        <div className="manage-paper-container">
+        <div className="manage-paper-container" style={{marginBottom:3}}>
             <Button type="primary" onClick={() => setIsPaperRollModalVisible(true)}>Зарегистрировать новый рулон</Button>
             <Modal
                 title="Зарегистрировать новый рулон"

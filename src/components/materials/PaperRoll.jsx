@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, Modal, Form, Input, Select, message, Card, Progress } from 'antd';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDocs, collection } from 'firebase/firestore';
 import { db } from '../login-signUp/firebase';
 import PaperCard from './PaperCard';
 import './PaperRoll.css';
@@ -11,6 +11,26 @@ const PaperRoll = ({ roll, isSelected, onSelect, organizationID }) => {
     const [isSendPaperModalVisible, setIsSendPaperModalVisible] = useState(false);
     const [form] = Form.useForm();
     const [agencies, setAgencies] = useState([]);  // Store agencies for the modal
+
+    // Fetch agencies from Firestore
+    useEffect(() => {
+        const fetchAgencies = async () => {
+            try {
+                const agencySnapshot = await getDocs(collection(db, `organizations/${organizationID}/agencies`));
+                const agencyList = agencySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    name: doc.data().name
+                }));
+                setAgencies(agencyList);
+            } catch (error) {
+                message.error('Ошибка при получении списка агентств: ' + error.message);
+            }
+        };
+
+        if (organizationID) {
+            fetchAgencies();
+        }
+    }, [organizationID]);
 
     // Send paper to an agency and generate a new paper card
     const sendPaperToAgency = async (values) => {
@@ -23,13 +43,24 @@ const PaperRoll = ({ roll, isSelected, onSelect, organizationID }) => {
                 remainingKg: values.kg,
                 receivedRecords: []  // Initialize with an empty array for received records
             };
-
-            // Add the new paper card to Firestore within the selected roll
+    
+            // Calculate the new 'used' and 'remaining' values
+            const updatedUsed = parseInt(roll.used) + parseInt(values.kg);
+            const updatedRemaining = parseInt(roll.remaining) - parseInt(values.kg);
+    
+            // Update Firestore with the new paper card and updated fields
             const rollRef = doc(db, `organizations/${organizationID}/paper-control`, roll.id);
             await updateDoc(rollRef, {
-                paperCards: [...roll.paperCards, newCard]  // Append the new card to the paperCards array
+                paperCards: [...roll.paperCards, newCard],  // Append the new card to the paperCards array
+                used: updatedUsed,  // Update 'used' amount
+                remaining: updatedRemaining  // Update 'remaining' amount
             });
-
+    
+            // Update local state for UI reflection
+            onSelect(roll.id); // Refresh the selected roll to get the latest data
+            roll.used = updatedUsed; // Update the used amount in the local roll
+            roll.remaining = updatedRemaining; // Update the remaining amount in the local roll
+    
             message.success('Бумага успешно отправлена в агентство!');
             setIsSendPaperModalVisible(false);
             form.resetFields();
@@ -37,6 +68,7 @@ const PaperRoll = ({ roll, isSelected, onSelect, organizationID }) => {
             message.error('Ошибка при отправке бумаги: ' + error.message);
         }
     };
+    
 
     return (
         <div className="paper-roll">

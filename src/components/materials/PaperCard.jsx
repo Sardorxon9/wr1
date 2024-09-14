@@ -22,7 +22,7 @@ const PaperCard = ({ card, roll, organizationID }) => {
                 }));
                 setCustomers(customerList);
             } catch (error) {
-                message.error('Error fetching customers: ' + error.message);
+                message.error('Ошибка при получении списка клиентов: ' + error.message);
             }
         };
 
@@ -44,7 +44,7 @@ const PaperCard = ({ card, roll, organizationID }) => {
             const rollRef = doc(db, `organizations/${organizationID}/paper-control`, roll.id);
             const rollDoc = await getDoc(rollRef);
             if (!rollDoc.exists()) {
-                message.error('Paper roll not found.');
+                message.error('Рулон бумаги не найден.');
                 return;
             }
             const rollData = rollDoc.data();
@@ -72,35 +72,35 @@ const PaperCard = ({ card, roll, organizationID }) => {
                 'paper.available': values.kg  // Add received paper to customer's available amount
             });
 
-            message.success('Received printed paper successfully!');
+            message.success('Полученная бумага успешно зарегистрирована!');
             setIsReceiveModalVisible(false);
             form.resetFields();
         } catch (error) {
-            message.error('Error receiving printed paper: ' + error.message);
+            message.error('Ошибка при получении бумаги: ' + error.message);
         }
     };
 
     return (
         <Card title={card.agency}>
-            <p>Sent: {card.sentKg} kg | Printed: {parseInt(card.printedKg)} kg | Remaining: {card.remainingKg} kg</p>
+            <p>Отправлено: {card.sentKg} кг | Напечатано: {parseInt(card.printedKg)} кг | Остаток: {card.remainingKg} кг</p>
             <Progress percent={(parseInt(card.printedKg) / parseInt(card.sentKg)) * 100} showInfo={false} />
 
-            <Button type="primary" ghost onClick={() => setIsReceiveModalVisible(true)}>Register Paper Receive</Button>
+            <Button type="primary" ghost onClick={() => setIsReceiveModalVisible(true)}>Зарегистрировать получение бумаги</Button>
 
             {/* Modal for registering received printed paper */}
             <Modal
-                title="Register Received Printed Paper"
+                title="Зарегистрировать полученную бумагу"
                 visible={isReceiveModalVisible}
                 onCancel={() => setIsReceiveModalVisible(false)}
                 onOk={() => form.submit()}
             >
                 <Form form={form} onFinish={registerReceivedPaper}>
-                    <Form.Item name="kg" label="Received Amount (kg)" rules={[{ required: true }]}>
+                    <Form.Item name="kg" label="Количество полученной бумаги (кг)" rules={[{ required: true }]}>
                         <Input type="number" />
                     </Form.Item>
 
-                    <Form.Item name="customerId" label="Select Customer" rules={[{ required: true }]}>
-                        <Select placeholder="Select a customer">
+                    <Form.Item name="customerId" label="Выберите клиента" rules={[{ required: true }]}>
+                        <Select placeholder="Выберите клиента">
                             {customers.map(customer => (
                                 <Option key={customer.id} value={customer.id}>
                                     {customer.brand}
@@ -109,13 +109,13 @@ const PaperCard = ({ card, roll, organizationID }) => {
                         </Select>
                     </Form.Item>
 
-                    <Form.Item name="receiveDate" label="Date Received" rules={[{ required: true }]}>
+                    <Form.Item name="receiveDate" label="Дата получения" rules={[{ required: true }]}>
                         <Input type="date" />
                     </Form.Item>
                 </Form>
             </Modal>
 
-            <h4>Received Records:</h4>
+            <h4>Записи о полученной бумаге:</h4>
             {card.receivedRecords.length > 0 ? (
                 card.receivedRecords.map((record, index) => {
                     const customer = customers.find(c => c.id === record.customerId);
@@ -123,11 +123,11 @@ const PaperCard = ({ card, roll, organizationID }) => {
                         <p key={index} style={{ marginBottom: '10px' }}> {/* Added marginBottom for spacing between records */}
                             <span style={{ marginRight: '20px' }}>
                                 <UserOutlined style={{ marginRight: '6px' }} />
-                                {customer ? customer.brand : 'Unknown Customer'}
+                                {customer ? customer.brand : 'Неизвестный клиент'}
                             </span>
                             <span style={{ marginRight: '20px' }}>
                                 <FileDoneOutlined style={{ marginRight: '6px' }} />
-                                {record.receivedKg} kg
+                                {record.receivedKg} кг
                             </span>
                             <span>
                                 <CalendarOutlined style={{ marginRight: '6px' }} />
@@ -138,7 +138,7 @@ const PaperCard = ({ card, roll, organizationID }) => {
                     
                 })
             ) : (
-                <p>No records found.</p>
+                <p>Записи не найдены.</p>
             )}
         </Card>
     );
