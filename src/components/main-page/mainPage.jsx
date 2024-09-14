@@ -16,7 +16,7 @@ import {
   MenuOutlined,
   CloseOutlined,
   CodeSandboxOutlined,
-  BoxPlotOutlined,
+  GroupOutlined, 
 } from '@ant-design/icons';
 import './mainPage.css';
 
@@ -170,19 +170,17 @@ const MainPage = () => {
     },
     {
       key: '8',
-      icon: <LogoutOutlined />,
-      label: <Link to="/" onClick={() => setDrawerVisible(false)}>Log Out</Link>,
+      icon: <GroupOutlined/>,
+      // Ensure organizationID is defined before using it in the Link
+      label: <Link to="/mainpage/manage-paper" state={organizationID ? { organizationID } : {}} onClick={() => setDrawerVisible(false)}>Бумаги</Link>,
     },
     {
       key: '9',
-      icon: <BoxPlotOutlined />,
-      label: <Link to="/mainpage/paper_manage" onClick={() => setDrawerVisible(false)}>Бумаги</Link>,
+      icon: <LogoutOutlined />,
+      label: <Link to="/" onClick={() => setDrawerVisible(false)}>Log Out</Link>,
     },
-    {
-      key: '10',
-      icon: <UserOutlined />,
-      label: <Link to="/mainpage/test" onClick={() => setDrawerVisible(false)}>Test</Link>,
-    },
+    
+  
   ];
 
   return (

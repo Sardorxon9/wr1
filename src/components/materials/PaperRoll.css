@@ -1,0 +1,33 @@
+.paper-roll-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+}
+
+.paper-roll-list {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.paper-roll-card {
+    width: 250px;
+    border: 1px solid #f0f0f0;
+    padding: 16px;
+    cursor: pointer;
+    transition: box-shadow 0.3s;
+}
+
+.paper-roll-card:hover {
+    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.selected {
+    border-color: #1890ff;
+    box-shadow: 0px 0px 10px rgba(24, 144, 255, 0.5);
+}
+
+.paper-card-list {
+    margin-top: 20px;
+}

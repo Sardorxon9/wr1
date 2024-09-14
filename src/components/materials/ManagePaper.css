@@ -1,0 +1,20 @@
+.manage-paper-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.paper-rolls-list {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: flex-start; /* Align rolls to the top left */
+}
+
+.paper-roll-card {
+    width: 250px;
+    border: 1px solid #f0f0f0;
+    padding: 16px;
+    cursor: pointer;
+    transition: box-shadow 0.3s;
+}
