@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, InputNumber, Cascader, message, Typography, Empty } from 'antd';
-import { collection, addDoc, getDocs, updateDoc, doc } from "firebase/firestore";
+import { collection, addDoc, getDocs } from "firebase/firestore";
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
+import { ExclamationCircleOutlined } from '@ant-design/icons'; 
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const Customers = () => {
   const [customers, setCustomers] = useState([]);
@@ -17,7 +18,7 @@ const Customers = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [buttonLoading, setButtonLoading] = useState(false);
-  const { organizationID } = useOutletContext(); 
+  const { organizationID } = useOutletContext();
 
   useEffect(() => {
     const fetchProductsCategoriesAndCustomers = async () => {
@@ -35,12 +36,12 @@ const Customers = () => {
 
           // Cascader options: use product ID as the value
           const options = categoriesData.map(category => ({
-            value: category.id,  // Use ID here
+            value: category.id,  
             label: category.name,
             children: productsData
               .filter(product => product.category === category.name)
               .map(product => ({
-                value: product.id,  // Use product ID here
+                value: product.id,  
                 label: product.title,
               })),
           }));
@@ -69,22 +70,22 @@ const Customers = () => {
   };
 
   const handleAddCustomer = async (values) => {
-    setButtonLoading(true); 
+    setButtonLoading(true);
     try {
       // Store the product ID instead of name
       await addDoc(collection(db, `organizations/${organizationID}/customers`), {
         ...values,
         product: values.product,  // This will now store the product ID
-        paper: { used: 0, available: 0, remaining: 0 }  // Initialize paper management data
+        paper: { used: 0, available: values.availablePaper, remaining: values.availablePaper }  // Initialize paper management data
       });
       message.success('Клиент успешно добавлен!');
       setIsModalVisible(false);
       form.resetFields();
-      setCustomers([...customers, values]);
+      setCustomers([...customers, { ...values, paper: { used: 0, available: values.availablePaper, remaining: values.availablePaper } }]);  // Add to the UI state
     } catch (error) {
       message.error('Ошибка при добавлении клиента: ' + error.message);
     } finally {
-      setButtonLoading(false); 
+      setButtonLoading(false);
     }
   };
 
@@ -103,14 +104,22 @@ const Customers = () => {
       title: 'Бренд',
       dataIndex: 'brand',
       key: 'brand',
+      render: (text, record) => (
+        <>
+          <Text strong={record.paper?.available === 0} style={{ color: record.paper?.available === 0 ? 'red' : 'black' }}>
+            {text}
+          </Text>
+          {record.paper?.available === 0 && (
+            <ExclamationCircleOutlined style={{ color: 'red', marginLeft: 8 }} />
+          )}
+        </>
+      )
     },
-  
     {
       title: 'Компания',
       dataIndex: 'companyName',
       key: 'companyName',
     },
-   
     {
       title: 'Контактное лицо',
       dataIndex: 'personInCharge',
@@ -121,14 +130,14 @@ const Customers = () => {
       dataIndex: 'product',
       key: 'product',
       render: ([categoryId, productId]) => {
-        const categoryName = getCategoryNameById(categoryId); 
-        const productName = getProductNameById(productId); 
+        const categoryName = getCategoryNameById(categoryId);
+        const productName = getProductNameById(productId);
 
         return (
           <>
-            <Typography.Text type="secondary">{categoryName}</Typography.Text> {/* Light gray category */}
+            <Text type="secondary">{categoryName}</Text> 
             {' → '}
-            <Typography.Text>{productName}</Typography.Text> {/* Regular text product name */}
+            <Text>{productName}</Text> 
           </>
         );
       },
@@ -140,13 +149,15 @@ const Customers = () => {
     },
     {
       title: 'Использованная бумага (кг)',
-      dataIndex: ['paper', 'used'],  // Access the paper used data
+      dataIndex: ['paper', 'used'],  
       key: 'paperUsed',
+      render: (used) => used || 0  // Default to 0 if used is undefined
     },
     {
       title: 'Доступная бумага (кг)',
-      dataIndex: ['paper', 'available'],  // Access the paper available data
+      dataIndex: ['paper', 'available'],  
       key: 'paperAvailable',
+      render: (available) => available || 0  // Default to 0 if available is undefined
     },
   ];
 
@@ -166,10 +177,10 @@ const Customers = () => {
         title="Добавить нового клиента"
         visible={isModalVisible}
         onCancel={handleCancel}
-        onOk={form.submit} 
+        onOk={form.submit}
         okText="Добавить"
         cancelText="Отмена"
-        confirmLoading={buttonLoading} 
+        confirmLoading={buttonLoading}
       >
         <Form form={form} layout="vertical" onFinish={handleAddCustomer}>
           <Form.Item name="companyName" label="Название компании" rules={[{ required: true, message: 'Пожалуйста, введите название компании!' }]}>
@@ -185,6 +196,9 @@ const Customers = () => {
             <Cascader options={cascaderOptions} placeholder="Выберите продукт" />
           </Form.Item>
           <Form.Item name="price" label="Цена (сум)" rules={[{ required: true, message: 'Пожалуйста, введите цену!' }]}>
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="availablePaper" label="Доступная бумага (кг)" rules={[{ required: true, message: 'Пожалуйста, введите количество доступной бумаги!' }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="phone" label="Телефон" rules={[{ required: true, message: 'Пожалуйста, введите номер телефона!' }]}>

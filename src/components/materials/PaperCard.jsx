@@ -81,9 +81,9 @@ const PaperCard = ({ card, roll, organizationID }) => {
     };
 
     return (
-        <Card title={card.agency}>
+        <Card title={card.agency} style={{boxShadow: "5px 8px 24px 5px rgba(208, 216, 243, 0.6)"}} >
             <p>Отправлено: {card.sentKg} кг | Напечатано: {parseInt(card.printedKg)} кг | Остаток: {card.remainingKg} кг</p>
-            <Progress percent={(parseInt(card.printedKg) / parseInt(card.sentKg)) * 100} showInfo={false} />
+            <Progress style={{marginBottom: 25}} percent={(parseInt(card.printedKg) / parseInt(card.sentKg)) * 100} showInfo={false} />
 
             <Button type="primary" ghost onClick={() => setIsReceiveModalVisible(true)}>Зарегистрировать получение бумаги</Button>
 

@@ -22,6 +22,7 @@ const PaperRoll = ({ roll, isSelected, onSelect, organizationID }) => {
                     name: doc.data().name
                 }));
                 setAgencies(agencyList);
+                console.log(agencies);
             } catch (error) {
                 message.error('Ошибка при получении списка агентств: ' + error.message);
             }
@@ -43,24 +44,15 @@ const PaperRoll = ({ roll, isSelected, onSelect, organizationID }) => {
                 remainingKg: values.kg,
                 receivedRecords: []  // Initialize with an empty array for received records
             };
-    
-            // Calculate the new 'used' and 'remaining' values
-            const updatedUsed = parseInt(roll.used) + parseInt(values.kg);
-            const updatedRemaining = parseInt(roll.remaining) - parseInt(values.kg);
-    
-            // Update Firestore with the new paper card and updated fields
+
+            // Add the new paper card to Firestore within the selected roll
             const rollRef = doc(db, `organizations/${organizationID}/paper-control`, roll.id);
             await updateDoc(rollRef, {
-                paperCards: [...roll.paperCards, newCard],  // Append the new card to the paperCards array
-                used: updatedUsed,  // Update 'used' amount
-                remaining: updatedRemaining  // Update 'remaining' amount
+                paperCards: [...roll.paperCards, newCard],
+                used: roll.used + parseInt(values.kg),  // Update the used kg
+                remaining: roll.remaining - parseInt(values.kg),  // Update the remaining kg
             });
-    
-            // Update local state for UI reflection
-            onSelect(roll.id); // Refresh the selected roll to get the latest data
-            roll.used = updatedUsed; // Update the used amount in the local roll
-            roll.remaining = updatedRemaining; // Update the remaining amount in the local roll
-    
+
             message.success('Бумага успешно отправлена в агентство!');
             setIsSendPaperModalVisible(false);
             form.resetFields();
@@ -68,7 +60,6 @@ const PaperRoll = ({ roll, isSelected, onSelect, organizationID }) => {
             message.error('Ошибка при отправке бумаги: ' + error.message);
         }
     };
-    
 
     return (
         <div className="paper-roll">
@@ -82,7 +73,7 @@ const PaperRoll = ({ roll, isSelected, onSelect, organizationID }) => {
                 <Progress percent={(roll.used / roll.kg) * 100} showInfo={false} />
                 <p>Использовано: {roll.used} кг</p>
                 <p>Остаток: {roll.remaining} кг</p>
-                <Button type="primary" onClick={(e) => { e.stopPropagation(); setIsSendPaperModalVisible(true); }}>Вывести</Button>
+                <Button type="primary" onClick={(e) => { e.stopPropagation(); setIsSendPaperModalVisible(true); }}>Отправить в типографию</Button>
             </Card>
 
             {/* Modal for sending paper to agency */}
