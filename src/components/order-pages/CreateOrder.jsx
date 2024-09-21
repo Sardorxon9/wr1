@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, DatePicker, InputNumber, Radio, Typography, Space, message, Select, Spin, Cascader } from 'antd';
 import dayjs from 'dayjs';
-import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit, updateDoc } from "firebase/firestore";
+import { setDoc, doc, getDoc, collection, getDocs, query, orderBy, limit, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../login-signUp/firebase";
 
 const { Title, Text } = Typography;
@@ -19,6 +19,7 @@ const CreateOrder = () => {
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);  // Track the selected customer
+  const [selectedProduct, setSelectedProduct] = useState(null); // Track the selected product
   const [loading, setLoading] = useState(false);
   const [loadingCustomers, setLoadingCustomers] = useState(false); 
   const [orderNumber, setOrderNumber] = useState('');
@@ -114,6 +115,7 @@ const CreateOrder = () => {
               product: [fetchedProduct.category, fetchedProduct.title],
               price: selectedCustomer.price,
             });
+            setSelectedProduct(fetchedProduct); // Set the selected product
           } else {
             console.error("Product not found!");
           }
@@ -126,19 +128,10 @@ const CreateOrder = () => {
     setOrderPreview(allValues);
   };
 
-  const calculateRequiredPaperInKg = (quantity, requiredPaperInGrams) => {
-    // Convert requiredPaper from grams to kilograms and calculate the total
-    return (quantity * requiredPaperInGrams) / 1000;
+  const formatQuantityInKg = (quantity, weightPerUnit) => {
+    const totalWeight = (quantity * weightPerUnit) / 1000;
+    return `${totalWeight.toFixed(2)} kg`;
   };
-
-  const calculateMaxPossibleQuantity = (availablePaperKg, requiredPaperGramsPer1000Units) => {
-    // Convert availablePaperKg to grams
-    const availablePaperGrams = availablePaperKg * 1000;
-    
-    // Calculate max possible quantity (in units) based on available paper
-    return Math.floor(availablePaperGrams / requiredPaperGramsPer1000Units) * 1000;
-};
-
 
   const onFinish = async (values) => {
     setLoading(true);
@@ -150,23 +143,60 @@ const CreateOrder = () => {
       const selectedProduct = products.find(product => product.title === values.product[1]);
       if (!selectedProduct) throw new Error('Продукт не найден.');
 
-      // Calculate total paper required for the order in kg
-      const totalPaperRequired = calculateRequiredPaperInKg(values.quantity, selectedProduct.requiredPaper);
+      // Fetch the material data
+      const materialsRef = collection(db, `organizations/${organizationID}/materials`);
+      const materialQuery = query(materialsRef, where('type', '==', selectedProduct.material));
+      const materialSnapshot = await getDocs(materialQuery);
 
-      // Check if the customer has enough available paper
-      if (selectedCustomer.paper.available < totalPaperRequired) {
-        const maxPossibleQuantity = calculateMaxPossibleQuantity(selectedCustomer.paper.available, selectedProduct.requiredPaper);
-        throw new Error(`Недостаточно бумаги. Максимально возможное количество: ${maxPossibleQuantity}.`);
+      if (materialSnapshot.empty) {
+        throw new Error(`Материал "${selectedProduct.material}" не найден.`);
+      }
+
+      const materialDoc = materialSnapshot.docs[0];
+      const materialData = materialDoc.data();
+
+      // Calculate total paper required for the order in kg
+      const totalPaperRequired = (values.quantity * selectedProduct.requiredPaper) / 1000000;
+
+      // Calculate total material required for the order in kg
+      const totalMaterialRequired = (values.quantity * selectedProduct.materialUsage) / 1000;
+
+      // Check if the customer has enough available paper and material
+      const paperEnough = selectedCustomer.paper.available >= totalPaperRequired;
+      const materialEnough = materialData.available >= totalMaterialRequired;
+
+      if (!paperEnough || !materialEnough) {
+        // Calculate max possible quantities
+        const availablePaperGrams = selectedCustomer.paper.available * 1000;
+        const maxThousandUnitsPaper = Math.floor(availablePaperGrams / selectedProduct.requiredPaper);
+        const maxPossibleQuantityPaper = maxThousandUnitsPaper * 1000;
+
+        const availableMaterialGrams = materialData.available * 1000;
+        const maxPossibleQuantityMaterial = Math.floor(availableMaterialGrams / selectedProduct.materialUsage);
+
+        const maxPossibleQuantity = Math.min(maxPossibleQuantityPaper, maxPossibleQuantityMaterial);
+
+        throw new Error(`Недостаточно ресурсов. Максимально возможное количество: ${maxPossibleQuantity}.`);
       }
 
       // Update customer's paper info
       const updatedAvailablePaper = selectedCustomer.paper.available - totalPaperRequired;
-      const updatedUsedPaper = selectedCustomer.paper.used + totalPaperRequired;
+      const updatedUsedPaper = (selectedCustomer.paper.used || 0) + totalPaperRequired;
 
       const customerDocRef = doc(db, `organizations/${organizationID}/customers`, selectedCustomer.id);
       await updateDoc(customerDocRef, {
         "paper.available": updatedAvailablePaper,
         "paper.used": updatedUsedPaper,
+      });
+
+      // Update material's available and used amounts
+      const updatedAvailableMaterial = materialData.available - totalMaterialRequired;
+      const updatedUsedMaterial = (materialData.used || 0) + totalMaterialRequired;
+
+      const materialDocRef = doc(db, `organizations/${organizationID}/materials`, materialDoc.id);
+      await updateDoc(materialDocRef, {
+        "available": updatedAvailableMaterial,
+        "used": updatedUsedMaterial
       });
 
       const orderData = {
@@ -195,6 +225,7 @@ const CreateOrder = () => {
 
       form.resetFields();
       setOrderPreview({ client: '', product: [], quantity: 1, price: 0 });
+      setSelectedProduct(null); // Reset the selected product
       await generateOrderNumber();
     } catch (error) {
       messageApi.open({
@@ -204,11 +235,6 @@ const CreateOrder = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatQuantityInKg = (quantity, weightPerUnit) => {
-    const totalWeight = (quantity * weightPerUnit) / 1000;
-    return `${totalWeight.toFixed(2)} kg`;
   };
 
   const productOptions = products.reduce((acc, product) => {
@@ -287,7 +313,7 @@ const CreateOrder = () => {
                 <div>
                   <Text strong>Количество:</Text> {(orderPreview.quantity || 0).toLocaleString()} шт
                   <Text type="secondary" style={{ marginLeft: 8 }}>
-                    ({formatQuantityInKg(orderPreview.quantity || 0, products.find(p => p.title === (orderPreview.product?.[1] || ''))?.requiredPaper || 0)})
+                    ({formatQuantityInKg(orderPreview.quantity || 0, selectedProduct?.materialUsage || 0)} {selectedProduct?.material || ''})
                   </Text>
                 </div>
                 <div><Text strong>Цена:</Text> {(orderPreview.price || 0).toLocaleString()} сум</div>

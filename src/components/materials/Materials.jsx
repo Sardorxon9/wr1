@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, message, Typography, Card, Progress, Space, Tag, Divider} from 'antd';
-import { collection, addDoc, getDocs, query, where, orderBy } from "firebase/firestore";
+import { Table, Button, Modal, Form, Input, InputNumber, message, Typography, Card, Progress, Space, Divider } from 'antd';
+import { collection, addDoc, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
 import { ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons';
@@ -122,11 +122,12 @@ const Materials = () => {
       key: 'available',
       render: (available, record) => {
         const used = record.used || 0;
-        const availablePercent = record.total ? ((available / record.total) * 100) : 0;
+        const total = record.total || 0;
+        const usedPercent = total ? ((used / total) * 100) : 0;
 
         return (
           <div>
-            <Progress percent={100 - availablePercent} status="active" showInfo={false} />
+            <Progress percent={usedPercent} status="active" showInfo={false} />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
               <span style={{ color: '#595959' }}>● Использовано: {used.toFixed(2)} кг</span>
               <span style={{ color: '#1677FF' }}>Доступно: {available.toFixed(2)} кг</span>
@@ -157,34 +158,33 @@ const Materials = () => {
         {materialTypes.map(type => {
           const summary = getSummary(type.name);
           return (
-            <Card 
-            key={type.id} 
-            title={type.name} 
-            extra={role === 'owner' && ( // Check role here
-              <Button icon={<PlusOutlined />} onClick={() => showModal(type)}>
-                Добавить
-              </Button>
-            )}
-            style={{ 
-              width: 300,
-              boxShadow: '0px 9px 28px rgba(0, 0, 0, 0.05)' // Adding the shadow effect
-            }}
-          >
-            <div style={{ marginBottom: 8 }}>
-              <Text strong>Итого:</Text> {summary.totalAdded.toLocaleString()} кг
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <Text strong>Итого доступно:</Text> {summary.totalAvailable.toLocaleString()} кг
-            </div>
-            <div>
-              <Text strong>Итого использовано:</Text> {summary.totalUsed.toLocaleString()} кг
-            </div>
-          </Card>
-          
+            <Card
+              key={type.id}
+              title={type.name}
+              extra={role === 'owner' && (
+                <Button icon={<PlusOutlined />} onClick={() => showModal(type)}>
+                  Добавить
+                </Button>
+              )}
+              style={{
+                width: 300,
+                boxShadow: '0px 9px 28px rgba(0, 0, 0, 0.05)'
+              }}
+            >
+              <div style={{ marginBottom: 8 }}>
+                <Text strong>Итого:</Text> {summary.totalAdded.toLocaleString()} кг
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <Text strong>Итого доступно:</Text> {summary.totalAvailable.toLocaleString()} кг
+              </div>
+              <div>
+                <Text strong>Итого использовано:</Text> {summary.totalUsed.toLocaleString()} кг
+              </div>
+            </Card>
           );
         })}
         {role === 'owner' && (
-          <Card 
+          <Card
             style={{ width: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
             onClick={() => setIsTypeModalVisible(true)}
           >
@@ -195,14 +195,13 @@ const Materials = () => {
         )}
       </Space>
       <Divider
-      
-      style={{
-        borderColor: '#0050b3',
-        padding : "2%",
-      }}
-    >
+        style={{
+          borderColor: '#0050b3',
+          padding: "2%",
+        }}
+      >
         <Text type="secondary"> Склад</Text>
-    </Divider>
+      </Divider>
       <Title level={2}>Запасы сырья</Title>
       <Table dataSource={materials} columns={columns} rowKey="id" loading={loading} />
 
@@ -230,25 +229,25 @@ const Materials = () => {
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
           <div style={{ marginTop: 10, display: 'flex', gap: '8px' }}>
-            <Button 
-              type="default" 
-              onClick={() => handleTagClick(10)} 
+            <Button
+              type="default"
+              onClick={() => handleTagClick(10)}
               style={{ flex: 1 }}
               className="quantity-button"
             >
               10 кг
             </Button>
-            <Button 
-              type="default" 
-              onClick={() => handleTagClick(25)} 
+            <Button
+              type="default"
+              onClick={() => handleTagClick(25)}
               style={{ flex: 1 }}
               className="quantity-button"
             >
               25 кг
             </Button>
-            <Button 
-              type="default" 
-              onClick={() => handleTagClick(50)} 
+            <Button
+              type="default"
+              onClick={() => handleTagClick(50)}
               style={{ flex: 1 }}
               className="quantity-button"
             >

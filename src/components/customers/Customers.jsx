@@ -1,13 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, Cascader, message, Typography, Empty } from 'antd';
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import {
+  Table,
+  Button,
+  Modal,
+  Form,
+  Input,
+  InputNumber,
+  Cascader,
+  message,
+  Typography,
+  Empty,
+  Space,
+} from 'antd';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+} from 'firebase/firestore';
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
-import { ExclamationCircleOutlined } from '@ant-design/icons'; 
+import {
+  ExclamationCircleOutlined,
+  EditOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 
 const { Title, Text } = Typography;
+const { confirm } = Modal;
 
 const Customers = () => {
   const [customers, setCustomers] = useState([]);
@@ -20,36 +44,58 @@ const Customers = () => {
   const [buttonLoading, setButtonLoading] = useState(false);
   const { organizationID } = useOutletContext();
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentCustomer, setCurrentCustomer] = useState(null);
+
   useEffect(() => {
     const fetchProductsCategoriesAndCustomers = async () => {
       if (organizationID) {
         try {
           // Fetch products
-          const productsSnapshot = await getDocs(collection(db, `organizations/${organizationID}/products`));
-          const productsData = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const productsSnapshot = await getDocs(
+            collection(db, `organizations/${organizationID}/products`)
+          );
+          const productsData = productsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
           setProducts(productsData);
 
           // Fetch categories
-          const categoriesSnapshot = await getDocs(collection(db, `organizations/${organizationID}/product-categories`));
-          const categoriesData = categoriesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const categoriesSnapshot = await getDocs(
+            collection(db, `organizations/${organizationID}/product-categories`)
+          );
+          const categoriesData = categoriesSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
           setCategories(categoriesData);
 
           // Cascader options: use product ID as the value
-          const options = categoriesData.map(category => ({
-            value: category.id,  
+          const options = categoriesData.map((category) => ({
+            value: category.id,
             label: category.name,
             children: productsData
-              .filter(product => product.category === category.name)
-              .map(product => ({
-                value: product.id,  
+              .filter((product) => product.category === category.name)
+              .map((product) => ({
+                value: product.id,
                 label: product.title,
               })),
           }));
           setCascaderOptions(options);
 
           // Fetch customers
-          const customersSnapshot = await getDocs(collection(db, `organizations/${organizationID}/customers`));
-          const customersData = customersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const customersSnapshot = await getDocs(
+            collection(db, `organizations/${organizationID}/customers`)
+          );
+          const customersData = customersSnapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              ...data,
+              paper: data.paper || { used: 0, available: 0, remaining: 0 },
+            };
+          });
           setCustomers(customersData);
         } catch (error) {
           message.error('Ошибка при загрузке данных: ' + error.message);
@@ -61,42 +107,137 @@ const Customers = () => {
     fetchProductsCategoriesAndCustomers();
   }, [organizationID]);
 
-  const showModal = () => {
+  const showModal = (customer) => {
+    if (customer) {
+      setIsEditing(true);
+      setCurrentCustomer(customer);
+      form.setFieldsValue({
+        ...customer,
+        product: customer.product,
+        availablePaper: customer.paper?.available || 0,
+        phone: customer.phone || '',
+      });
+    } else {
+      setIsEditing(false);
+      form.resetFields();
+    }
     setIsModalVisible(true);
   };
 
   const handleCancel = () => {
     setIsModalVisible(false);
+    setIsEditing(false);
+    setCurrentCustomer(null);
+    form.resetFields();
   };
 
-  const handleAddCustomer = async (values) => {
+  const handleSaveCustomer = async (values) => {
     setButtonLoading(true);
     try {
-      // Store the product ID instead of name
-      await addDoc(collection(db, `organizations/${organizationID}/customers`), {
-        ...values,
-        product: values.product,  // This will now store the product ID
-        paper: { used: 0, available: values.availablePaper, remaining: values.availablePaper }  // Initialize paper management data
-      });
-      message.success('Клиент успешно добавлен!');
+      const availablePaper = parseFloat(values.availablePaper) || 0;
+
+      if (isEditing && currentCustomer) {
+        // Update existing customer
+        const customerRef = doc(
+          db,
+          `organizations/${organizationID}/customers`,
+          currentCustomer.id
+        );
+        await updateDoc(customerRef, {
+          ...values,
+          product: values.product,
+          paper: {
+            ...currentCustomer.paper,
+            available: availablePaper,
+          },
+        });
+        message.success('Клиент успешно обновлен!');
+        // Update the state
+        setCustomers(
+          customers.map((c) =>
+            c.id === currentCustomer.id
+              ? {
+                  ...c,
+                  ...values,
+                  product: values.product,
+                  paper: {
+                    ...currentCustomer.paper,
+                    available: availablePaper,
+                  },
+                }
+              : c
+          )
+        );
+      } else {
+        // Add new customer
+        await addDoc(
+          collection(db, `organizations/${organizationID}/customers`),
+          {
+            ...values,
+            product: values.product,
+            paper: {
+              used: 0,
+              available: availablePaper,
+              remaining: availablePaper,
+            },
+          }
+        );
+        message.success('Клиент успешно добавлен!');
+        // Fetch the customers again to get the new customer with its ID
+        const customersSnapshot = await getDocs(
+          collection(db, `organizations/${organizationID}/customers`)
+        );
+        const customersData = customersSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setCustomers(customersData);
+      }
       setIsModalVisible(false);
       form.resetFields();
-      setCustomers([...customers, { ...values, paper: { used: 0, available: values.availablePaper, remaining: values.availablePaper } }]);  // Add to the UI state
     } catch (error) {
-      message.error('Ошибка при добавлении клиента: ' + error.message);
+      message.error('Ошибка при сохранении клиента: ' + error.message);
     } finally {
       setButtonLoading(false);
+      setIsEditing(false);
+      setCurrentCustomer(null);
     }
   };
 
   const getProductNameById = (productId) => {
-    const product = products.find(p => p.id === productId);
+    const product = products.find((p) => p.id === productId);
     return product ? product.title : 'Unknown Product';
   };
 
   const getCategoryNameById = (categoryId) => {
-    const category = categories.find(c => c.id === categoryId);
+    const category = categories.find((c) => c.id === categoryId);
     return category ? category.name : 'Unknown Category';
+  };
+
+  const handleEditCustomer = (customer) => {
+    showModal(customer);
+  };
+
+  const handleDeleteCustomer = (customer) => {
+    confirm({
+      title: 'Вы уверены, что хотите удалить этого клиента?',
+      icon: <ExclamationCircleOutlined />,
+      content: 'Это действие нельзя будет отменить.',
+      okText: 'Да',
+      okType: 'danger',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          await deleteDoc(
+            doc(db, `organizations/${organizationID}/customers`, customer.id)
+          );
+          message.success('Клиент успешно удален!');
+          setCustomers(customers.filter((c) => c.id !== customer.id));
+        } catch (error) {
+          message.error('Ошибка при удалении клиента: ' + error.message);
+        }
+      },
+    });
   };
 
   const columns = [
@@ -104,41 +245,60 @@ const Customers = () => {
       title: 'Бренд',
       dataIndex: 'brand',
       key: 'brand',
+      width: 150,
       render: (text, record) => (
         <>
-          <Text strong={record.paper?.available === 0} style={{ color: record.paper?.available === 0 ? 'red' : 'black' }}>
+          <Text
+            strong={record.paper?.available === 0}
+            style={{
+              color: record.paper?.available === 0 ? 'red' : 'black',
+              whiteSpace: 'nowrap',
+            }}
+          >
             {text}
           </Text>
           {record.paper?.available === 0 && (
             <ExclamationCircleOutlined style={{ color: 'red', marginLeft: 8 }} />
           )}
         </>
-      )
+      ),
     },
     {
       title: 'Компания',
       dataIndex: 'companyName',
       key: 'companyName',
+      width: 150,
+      render: (text) => (
+        <div style={{ whiteSpace: 'nowrap' }}>
+          {text}
+        </div>
+      ),
     },
     {
       title: 'Контактное лицо',
       dataIndex: 'personInCharge',
       key: 'personInCharge',
+      width: 150,
+      render: (text) => (
+        <div style={{ whiteSpace: 'nowrap' }}>
+          {text}
+        </div>
+      ),
     },
     {
       title: 'Продукт',
       dataIndex: 'product',
       key: 'product',
+      width: 200,
       render: ([categoryId, productId]) => {
         const categoryName = getCategoryNameById(categoryId);
         const productName = getProductNameById(productId);
 
         return (
-          <>
-            <Text type="secondary">{categoryName}</Text> 
-            {' → '}
-            <Text>{productName}</Text> 
-          </>
+          <div style={{ whiteSpace: 'nowrap' }}>
+            <Text type="secondary">{categoryName}</Text> {' → '}
+            <Text>{productName}</Text>
+          </div>
         );
       },
     },
@@ -146,62 +306,163 @@ const Customers = () => {
       title: 'Цена (сум)',
       dataIndex: 'price',
       key: 'price',
+      width: 100,
+      render: (price) => (
+        <div style={{ whiteSpace: 'nowrap' }}>
+          {price.toLocaleString()}
+        </div>
+      ),
     },
     {
       title: 'Использованная бумага (кг)',
-      dataIndex: ['paper', 'used'],  
+      dataIndex: ['paper', 'used'],
       key: 'paperUsed',
-      render: (used) => used || 0  // Default to 0 if used is undefined
+      width: 150,
+      render: (used) => {
+        const usedNumber = parseFloat(used);
+        if (isNaN(usedNumber)) {
+          return '0 кг';
+        } else {
+          return usedNumber.toFixed(1) + ' кг';
+        }
+      },
     },
     {
       title: 'Доступная бумага (кг)',
-      dataIndex: ['paper', 'available'],  
+      dataIndex: ['paper', 'available'],
       key: 'paperAvailable',
-      render: (available) => available || 0  // Default to 0 if available is undefined
+      width: 150,
+      render: (available) => {
+        const availableNumber = parseFloat(available);
+        if (isNaN(availableNumber)) {
+          return '0 кг';
+        } else {
+          return availableNumber.toFixed(1) + ' кг';
+        }
+      },
+    },
+    {
+      title: 'Действия',
+      key: 'actions',
+      width: 100,
+      render: (text, record) => (
+        <Space size="middle">
+          <Button
+            type="link"
+            icon={<EditOutlined />}
+            onClick={() => handleEditCustomer(record)}
+          />
+          <Button
+            type="link"
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteCustomer(record)}
+          />
+        </Space>
+      ),
     },
   ];
 
   return (
     <div>
       <Title level={2}>Клиенты</Title>
-      {customers.length === 0 && !loading ? (
-        <Empty description={<span>Клиенты не зарегистрированы. Пожалуйста, нажмите кнопку ниже, чтобы начать регистрацию клиентов.</span>} />
-      ) : (
-        <Table dataSource={customers} columns={columns} rowKey="id" loading={loading} />
-      )}
-      <Button type="primary" onClick={showModal} style={{ marginBottom: 20 }}>
+      <Button
+        type="primary"
+        onClick={() => showModal(null)}
+        style={{ marginBottom: 20 }}
+      >
         Добавить нового клиента
       </Button>
+      {customers.length === 0 && !loading ? (
+        <Empty
+          description={
+            <span>
+              Клиенты не зарегистрированы. Пожалуйста, нажмите кнопку ниже, чтобы
+              начать регистрацию клиентов.
+            </span>
+          }
+        />
+      ) : (
+        <Table
+          dataSource={customers}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{ pageSize: 10 }}
+          scroll={{ x: true }}
+        />
+      )}
 
       <Modal
-        title="Добавить нового клиента"
+        title={isEditing ? 'Редактировать клиента' : 'Добавить нового клиента'}
         visible={isModalVisible}
         onCancel={handleCancel}
         onOk={form.submit}
-        okText="Добавить"
+        okText={isEditing ? 'Сохранить изменения' : 'Добавить'}
         cancelText="Отмена"
         confirmLoading={buttonLoading}
       >
-        <Form form={form} layout="vertical" onFinish={handleAddCustomer}>
-          <Form.Item name="companyName" label="Название компании" rules={[{ required: true, message: 'Пожалуйста, введите название компании!' }]}>
+        <Form form={form} layout="vertical" onFinish={handleSaveCustomer}>
+          <Form.Item
+            name="companyName"
+            label="Название компании"
+            rules={[
+              { required: true, message: 'Пожалуйста, введите название компании!' },
+            ]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="brand" label="Бренд" rules={[{ required: true, message: 'Пожалуйста, введите бренд!' }]}>
+          <Form.Item
+            name="brand"
+            label="Бренд"
+            rules={[{ required: true, message: 'Пожалуйста, введите бренд!' }]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="personInCharge" label="Контактное лицо" rules={[{ required: true, message: 'Пожалуйста, введите имя контактного лица!' }]}>
+          <Form.Item
+            name="personInCharge"
+            label="Контактное лицо"
+            rules={[
+              {
+                required: true,
+                message: 'Пожалуйста, введите имя контактного лица!',
+              },
+            ]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="product" label="Продукт" rules={[{ required: true, message: 'Пожалуйста, выберите продукт!' }]}>
+          <Form.Item
+            name="product"
+            label="Продукт"
+            rules={[{ required: true, message: 'Пожалуйста, выберите продукт!' }]}
+          >
             <Cascader options={cascaderOptions} placeholder="Выберите продукт" />
           </Form.Item>
-          <Form.Item name="price" label="Цена (сум)" rules={[{ required: true, message: 'Пожалуйста, введите цену!' }]}>
+          <Form.Item
+            name="price"
+            label="Цена (сум)"
+            rules={[{ required: true, message: 'Пожалуйста, введите цену!' }]}
+          >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="availablePaper" label="Доступная бумага (кг)" rules={[{ required: true, message: 'Пожалуйста, введите количество доступной бумаги!' }]}>
+          <Form.Item
+            name="availablePaper"
+            label="Доступная бумага (кг)"
+            rules={[
+              {
+                required: true,
+                message: 'Пожалуйста, введите количество доступной бумаги!',
+              },
+            ]}
+          >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="phone" label="Телефон" rules={[{ required: true, message: 'Пожалуйста, введите номер телефона!' }]}>
+          <Form.Item
+            name="phone"
+            label="Телефон"
+            rules={[
+              { required: true, message: 'Пожалуйста, введите номер телефона!' },
+            ]}
+          >
             <PhoneInput
               country={'uz'}
               onlyCountries={['uz']}
@@ -211,7 +472,6 @@ const Customers = () => {
               containerStyle={{ width: '100%' }}
               inputProps={{
                 required: true,
-                autoFocus: true,
               }}
             />
           </Form.Item>
