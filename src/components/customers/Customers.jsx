@@ -42,7 +42,7 @@ const Customers = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [buttonLoading, setButtonLoading] = useState(false);
-  const { organizationID } = useOutletContext();
+  const { organizationID, role } = useOutletContext();
 
   const [isEditing, setIsEditing] = useState(false);
   const [currentCustomer, setCurrentCustomer] = useState(null);
@@ -51,16 +51,6 @@ const Customers = () => {
     const fetchProductsCategoriesAndCustomers = async () => {
       if (organizationID) {
         try {
-          // Fetch products
-          const productsSnapshot = await getDocs(
-            collection(db, `organizations/${organizationID}/products`)
-          );
-          const productsData = productsSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          setProducts(productsData);
-
           // Fetch categories
           const categoriesSnapshot = await getDocs(
             collection(db, `organizations/${organizationID}/product-categories`)
@@ -71,14 +61,24 @@ const Customers = () => {
           }));
           setCategories(categoriesData);
 
-          // Cascader options: use product ID as the value
+          // Fetch products
+          const productsSnapshot = await getDocs(
+            collection(db, `organizations/${organizationID}/products`)
+          );
+          const productsData = productsSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          setProducts(productsData);
+
+          // Cascader options: map categories to their products using IDs
           const options = categoriesData.map((category) => ({
-            value: category.id,
+            value: category.id, // Use category ID
             label: category.name,
             children: productsData
-              .filter((product) => product.category === category.name)
+              .filter((product) => product.categoryId === category.id)
               .map((product) => ({
-                value: product.id,
+                value: product.id, // Use product ID
                 label: product.title,
               })),
           }));
@@ -113,7 +113,7 @@ const Customers = () => {
       setCurrentCustomer(customer);
       form.setFieldsValue({
         ...customer,
-        product: customer.product,
+        product: [customer.product.categoryId, customer.product.productId],
         availablePaper: customer.paper?.available || 0,
         phone: customer.phone || '',
       });
@@ -136,6 +136,8 @@ const Customers = () => {
     try {
       const availablePaper = parseFloat(values.availablePaper) || 0;
 
+      const [categoryId, productId] = values.product;
+
       if (isEditing && currentCustomer) {
         // Update existing customer
         const customerRef = doc(
@@ -145,7 +147,10 @@ const Customers = () => {
         );
         await updateDoc(customerRef, {
           ...values,
-          product: values.product,
+          product: {
+            categoryId,
+            productId,
+          },
           paper: {
             ...currentCustomer.paper,
             available: availablePaper,
@@ -159,7 +164,10 @@ const Customers = () => {
               ? {
                   ...c,
                   ...values,
-                  product: values.product,
+                  product: {
+                    categoryId,
+                    productId,
+                  },
                   paper: {
                     ...currentCustomer.paper,
                     available: availablePaper,
@@ -174,7 +182,10 @@ const Customers = () => {
           collection(db, `organizations/${organizationID}/customers`),
           {
             ...values,
-            product: values.product,
+            product: {
+              categoryId,
+              productId,
+            },
             paper: {
               used: 0,
               available: availablePaper,
@@ -290,7 +301,10 @@ const Customers = () => {
       dataIndex: 'product',
       key: 'product',
       width: 200,
-      render: ([categoryId, productId]) => {
+      render: (product) => {
+        const categoryId = product?.categoryId;
+        const productId = product?.productId;
+
         const categoryName = getCategoryNameById(categoryId);
         const productName = getProductNameById(productId);
 
@@ -302,17 +316,19 @@ const Customers = () => {
         );
       },
     },
-    {
-      title: 'Цена (сум)',
-      dataIndex: 'price',
-      key: 'price',
-      width: 100,
-      render: (price) => (
-        <div style={{ whiteSpace: 'nowrap' }}>
-          {price.toLocaleString()}
-        </div>
-      ),
-    },
+    ...(role === 'owner' ? [
+      {
+        title: 'Цена (сум)',
+        dataIndex: 'price',
+        key: 'price',
+        width: 100,
+        render: (price) => (
+          <div style={{ whiteSpace: 'nowrap' }}>
+            {price.toLocaleString()}
+          </div>
+        ),
+      },
+    ] : []),
     {
       title: 'Использованная бумага (кг)',
       dataIndex: ['paper', 'used'],
@@ -341,37 +357,41 @@ const Customers = () => {
         }
       },
     },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 100,
-      render: (text, record) => (
-        <Space size="middle">
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => handleEditCustomer(record)}
-          />
-          <Button
-            type="link"
-            icon={<DeleteOutlined />}
-            onClick={() => handleDeleteCustomer(record)}
-          />
-        </Space>
-      ),
-    },
+    ...(role === 'owner' ? [
+      {
+        title: 'Действия',
+        key: 'actions',
+        width: 100,
+        render: (text, record) => (
+          <Space size="middle">
+            <Button
+              type="link"
+              icon={<EditOutlined />}
+              onClick={() => handleEditCustomer(record)}
+            />
+            <Button
+              type="link"
+              icon={<DeleteOutlined style={{ color: 'red' }} />}
+              onClick={() => handleDeleteCustomer(record)}
+            />
+          </Space>
+        ),
+      },
+    ] : []),
   ];
 
   return (
     <div>
       <Title level={2}>Клиенты</Title>
-      <Button
-        type="primary"
-        onClick={() => showModal(null)}
-        style={{ marginBottom: 20 }}
-      >
-        Добавить нового клиента
-      </Button>
+      {role === 'owner' && (
+        <Button
+          type="primary"
+          onClick={() => showModal(null)}
+          style={{ marginBottom: 20 }}
+        >
+          Добавить нового клиента
+        </Button>
+      )}
       {customers.length === 0 && !loading ? (
         <Empty
           description={

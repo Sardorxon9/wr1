@@ -41,6 +41,7 @@ const CreateOrder = () => {
   });
   const [organizationID, setOrganizationID] = useState('');
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -69,6 +70,17 @@ const CreateOrder = () => {
     const fetchCustomersAndProducts = async (organizationID) => {
       setLoadingCustomers(true);
 
+      // Fetch categories
+      const categoriesSnapshot = await getDocs(
+        collection(db, `organizations/${organizationID}/product-categories`)
+      );
+      const categoriesData = categoriesSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setCategories(categoriesData);
+
+      // Fetch products
       const productsSnapshot = await getDocs(
         collection(db, `organizations/${organizationID}/products`)
       );
@@ -78,6 +90,7 @@ const CreateOrder = () => {
       }));
       setProducts(productsData);
 
+      // Fetch customers
       const customersSnapshot = await getDocs(
         collection(db, `organizations/${organizationID}/customers`)
       );
@@ -128,30 +141,28 @@ const CreateOrder = () => {
     setSelectedCustomer(selectedCustomer);
 
     if (selectedCustomer) {
-      const productID = selectedCustomer.product[1];
-      const fetchProductDetails = async () => {
-        try {
-          const productRef = doc(
-            db,
-            `organizations/${organizationID}/products/${productID}`
-          );
-          const productSnapshot = await getDoc(productRef);
-          if (productSnapshot.exists()) {
-            const fetchedProduct = productSnapshot.data();
-            form.setFieldsValue({
-              product: [fetchedProduct.category, fetchedProduct.title],
-              price: selectedCustomer.price,
-            });
-            setSelectedProduct(fetchedProduct);
-          } else {
-            console.error('Product not found!');
-          }
-        } catch (error) {
-          console.error('Error fetching product details:', error);
-        }
-      };
-      fetchProductDetails();
+      const categoryName = selectedCustomer.product.category;
+      const productTitle = selectedCustomer.product.title;
+
+      form.setFieldsValue({
+        product: [categoryName, productTitle],
+        price: selectedCustomer.price,
+      });
+
+      const selectedProduct = products.find(
+        (product) =>
+          product.title === productTitle && product.category === categoryName
+      );
+      setSelectedProduct(selectedProduct);
+    } else {
+      // Reset product and price if no customer is selected
+      form.setFieldsValue({
+        product: [],
+        price: 0,
+      });
+      setSelectedProduct(null);
     }
+
     setOrderPreview(allValues);
   };
 
@@ -168,7 +179,9 @@ const CreateOrder = () => {
 
       // Fetch the selected product
       const selectedProduct = products.find(
-        (product) => product.title === values.product[1]
+        (product) =>
+          product.title === values.product[1] &&
+          product.category === values.product[0]
       );
       if (!selectedProduct) throw new Error('Продукт не найден.');
 
@@ -368,21 +381,16 @@ const CreateOrder = () => {
     }
   };
 
-  const productOptions = products.reduce((acc, product) => {
-    if (!product.category || !product.title) return acc;
-
-    const category = product.category;
-    const productItem = { value: product.title, label: product.title };
-    const categoryIndex = acc.findIndex((item) => item.value === category);
-
-    if (categoryIndex > -1) {
-      acc[categoryIndex].children.push(productItem);
-    } else {
-      acc.push({ value: category, label: category, children: [productItem] });
-    }
-
-    return acc;
-  }, []);
+  const productOptions = categories.map((category) => ({
+    value: category.name,
+    label: category.name,
+    children: products
+      .filter((product) => product.category === category.name)
+      .map((product) => ({
+        value: product.title,
+        label: product.title,
+      })),
+  }));
 
   return (
     <div className="create-order-container">
@@ -448,8 +456,8 @@ const CreateOrder = () => {
                       >
                         {customer.brand}
                         <Text type="secondary">
-                          {' '}
-                          | Доступно: {customer.paper?.available || 0} кг
+                          {'  '} {'  '}
+                          | Доступно бумаги : {customer.paper?.available || 0} кг
                         </Text>
                       </Select.Option>
                     ))
@@ -516,10 +524,10 @@ const CreateOrder = () => {
                   { required: true, message: 'Пожалуйста, выберите статус!' },
                 ]}
               >
-                <Radio.Group>
+                <Radio.Group wrapperMarginInlineEnd="55" >
                   <Radio value="in-progress">В процессе</Radio>
-                  <Radio value="delivered">Доставлено</Radio>
                   <Radio value="ready">Готов к отправке</Radio>
+                  <Radio value="delivered">Доставлено</Radio>
                 </Radio.Group>
               </Form.Item>
             </div>

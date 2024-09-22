@@ -246,7 +246,7 @@ const MainPage = () => {
               <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
               <Space direction="vertical" size={0} className="user-info" style={{ marginLeft: '10px' }}>
                 <Text className="user-name" strong>{userDetails?.fullName}</Text>
-                <Text className="user-role">{userDetails?.role === 'owner' ? 'Администратор' : 'Участник'}</Text>
+                <Text className="user-role">{userDetails?.role === 'owner' ? 'Администратор' : 'Сотрудник'}</Text>
               </Space>
             </div>
           </div>
