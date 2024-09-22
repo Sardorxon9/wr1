@@ -105,12 +105,12 @@ const Products = () => {
       render: (price) => `${price} сум`,
     },
     {
-      title: 'Материал',
+      title: 'Сырье',
       dataIndex: 'material',
       key: 'material',
     },
     {
-      title: 'Расход материала (грамм)',
+      title: 'Расход сырья (грамм)',
       dataIndex: 'materialUsage',
       key: 'materialUsage',
       render: (materialUsage) => `${materialUsage} гр`,
@@ -157,8 +157,8 @@ const Products = () => {
           <Form.Item name="price" label="Цена" rules={[{ required: true, message: 'Пожалуйста, введите цену!' }]}>
             <Input addonAfter="сум" />
           </Form.Item>
-          <Form.Item name="material" label="Материал" rules={[{ required: true, message: 'Пожалуйста, выберите материал!' }]}>
-            <Select placeholder="Выберите материал">
+          <Form.Item name="material" label="Сырье" rules={[{ required: true, message: 'Пожалуйста, выберите сырье!' }]}>
+            <Select placeholder="Выберите сырье">
               {materialTypes.map(materialType => (
                 <Select.Option key={materialType.id} value={materialType.name}>
                   {materialType.name}
@@ -166,15 +166,15 @@ const Products = () => {
               ))}
             </Select>
           </Form.Item>
-          <Form.Item name="materialUsage" label="Расход материала за 1 ед. (грамм)" rules={[{ required: true, message: 'Пожалуйста, введите расход материала за 1 ед.' }]}>
+          <Form.Item name="materialUsage" label="Расход сырья за 1 шт. (грамм)" rules={[{ required: true, message: 'Пожалуйста, введите расход сырья за 1 ед.' }]}>
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
 
           {/* New Field for Paper Required */}
           <Form.Item
             name="requiredPaper"
-            label="Бумага, необходимая для производства (гр)"
-            rules={[{ required: true, message: 'Пожалуйста, введите количество бумаги, необходимой для производства (гр)' }]}
+            label="Бумага, необходимая для производства 1,000 шт (в гр)"
+            rules={[{ required: true, message: 'Пожалуйста, введите количество бумаги, необходимой для производства 1,000 шт (в гр)' }]}
           >
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
