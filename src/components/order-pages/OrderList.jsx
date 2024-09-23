@@ -69,7 +69,8 @@ const OrderList = () => {
   const [viewMode, setViewMode] = useState('table');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState([]); // Add this state for products
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]); // Add customers state
 
   // State for delete modal
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -106,6 +107,16 @@ const OrderList = () => {
         ...doc.data(),
       }));
       setProducts(productsData);
+
+      // Fetch customers
+      const customersSnapshot = await getDocs(
+        collection(db, `organizations/${orgID}/customers`)
+      );
+      const customersData = customersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setCustomers(customersData);
     } catch (error) {
       console.error('Error fetching data:', error);
       message.error('Ошибка при загрузке данных.');
@@ -124,16 +135,16 @@ const OrderList = () => {
 
         // Find the product from the order data
         const selectedProduct = products.find(
-          (product) => product.id === orderData.product?.id
+          (product) => product.id === orderData.product?.productId
         );
 
         if (selectedProduct) {
           // Get the material related to the product
-          const materialSnapshot = await getDocs(
+          const materialsSnapshot = await getDocs(
             collection(db, `organizations/${organizationID}/materials`)
           );
-          const materialDoc = materialSnapshot.docs.find(
-            (doc) => doc.data().name === selectedProduct.material
+          const materialDoc = materialsSnapshot.docs.find(
+            (doc) => doc.data().type === selectedProduct.material
           );
 
           if (materialDoc) {
@@ -164,15 +175,17 @@ const OrderList = () => {
           if (deleteOption === 'wrongOrder') {
             // Restore paper
             // Get customer data
-            const customerDocRef = doc(
-              db,
-              `organizations/${organizationID}/customers`,
-              orderData.client?.id
+            const customerDoc = customers.find(
+              (customer) => customer.brand === orderData.client?.brand
             );
-            const customerDoc = await getDoc(customerDocRef);
-            if (customerDoc.exists()) {
-              const customerData = customerDoc.data();
-              const paperData = customerData.paper || {};
+
+            if (customerDoc) {
+              const customerDocRef = doc(
+                db,
+                `organizations/${organizationID}/customers`,
+                customerDoc.id
+              );
+              const paperData = customerDoc.paper || {};
 
               // Calculate paper used in the order
               const totalPaperRequired =
@@ -244,10 +257,7 @@ const OrderList = () => {
                     )
                   : 'Дата не указана'}
               </Text>
-              <Text
-                strong
-                style={{ fontSize: 18, marginBottom: 4 }}
-              >
+              <Text strong style={{ fontSize: 18, marginBottom: 4 }}>
                 {order.client?.brand || 'Клиент не указан'}
               </Text>
               <Text style={{ display: 'block', color: '#6B7280' }}>
@@ -255,7 +265,9 @@ const OrderList = () => {
               </Text>
               <Text style={{ display: 'block', marginBottom: 8 }}>
                 {order.product && typeof order.product === 'object'
-                  ? `${order.product.category} > ${order.product.title}`
+                  ? `${order.product.categoryName || ''} > ${
+                      order.product.productTitle || ''
+                    }`
                   : 'Продукт не указан'}
               </Text>
               <Text
@@ -411,7 +423,9 @@ const OrderList = () => {
       dataIndex: 'product',
       render: (_, record) => {
         if (record.product && typeof record.product === 'object') {
-          return `${record.product.category} > ${record.product.title}`;
+          return `${record.product.categoryName || ''} > ${
+            record.product.productTitle || ''
+          }`;
         } else {
           return 'Продукт не указан';
         }
