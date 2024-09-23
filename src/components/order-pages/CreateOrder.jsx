@@ -56,23 +56,25 @@ const CreateOrder = () => {
         const userDocRef = doc(db, 'owner-users', user.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
-          const organizationID = userDocSnap.data().organizationID;
-          setOrganizationID(organizationID);
-
-          // Once the organizationID is available, fetch the customer data
-          fetchCustomersAndProducts(organizationID);
+          const orgID = userDocSnap.data().organizationID;
+          if (orgID) {
+            setOrganizationID(orgID);
+            fetchCustomersAndProducts(orgID);
+          } else {
+            console.error('Organization ID is missing!');
+          }
         } else {
           console.error('No such user!');
         }
       }
     };
 
-    const fetchCustomersAndProducts = async (organizationID) => {
+    const fetchCustomersAndProducts = async (orgID) => {
       setLoadingCustomers(true);
 
       // Fetch categories
       const categoriesSnapshot = await getDocs(
-        collection(db, `organizations/${organizationID}/product-categories`)
+        collection(db, `organizations/${orgID}/product-categories`)
       );
       const categoriesData = categoriesSnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -82,7 +84,7 @@ const CreateOrder = () => {
 
       // Fetch products
       const productsSnapshot = await getDocs(
-        collection(db, `organizations/${organizationID}/products`)
+        collection(db, `organizations/${orgID}/products`)
       );
       const productsData = productsSnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -92,7 +94,7 @@ const CreateOrder = () => {
 
       // Fetch customers
       const customersSnapshot = await getDocs(
-        collection(db, `organizations/${organizationID}/customers`)
+        collection(db, `organizations/${orgID}/customers`)
       );
       const customersData = customersSnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -108,9 +110,11 @@ const CreateOrder = () => {
   }, []);
 
   const generateOrderNumber = async () => {
+    if (!organizationID) return;
+
     const now = new Date();
     const year = now.getFullYear().toString().slice(-2);
-    const month = (`0${now.getMonth() + 1}`).slice(-2);
+    const month = `0${now.getMonth() + 1}`.slice(-2);
     const randomChars = Math.random().toString(36).substring(2, 4).toUpperCase();
 
     const ordersRef = collection(db, `organizations/${organizationID}/orders`);
@@ -130,7 +134,7 @@ const CreateOrder = () => {
       }
     }
 
-    const formattedSequence = (`0000${sequenceNumber}`).slice(-4);
+    const formattedSequence = `0000${sequenceNumber}`.slice(-4);
     setOrderNumber(`${year}${month}${randomChars}${formattedSequence}`);
   };
 
@@ -141,21 +145,24 @@ const CreateOrder = () => {
     setSelectedCustomer(selectedCustomer);
 
     if (selectedCustomer) {
-      const categoryName = selectedCustomer.product.category;
-      const productTitle = selectedCustomer.product.title;
+      const categoryId = selectedCustomer.product?.categoryId;
+      const productId = selectedCustomer.product?.productId;
 
-      form.setFieldsValue({
-        product: [categoryName, productTitle],
-        price: selectedCustomer.price,
-      });
+      if (categoryId && productId) {
+        const category = categories.find((cat) => cat.id === categoryId)?.name;
+        const product = products.find((prod) => prod.id === productId);
 
-      const selectedProduct = products.find(
-        (product) =>
-          product.title === productTitle && product.category === categoryName
-      );
-      setSelectedProduct(selectedProduct);
+        form.setFieldsValue({
+          product: [category, product?.title],
+          price: selectedCustomer.price,
+        });
+
+        setSelectedProduct(product);
+      } else {
+        form.setFieldsValue({ product: [], price: 0 });
+        setSelectedProduct(null);
+      }
     } else {
-      // Reset product and price if no customer is selected
       form.setFieldsValue({
         product: [],
         price: 0,
@@ -172,20 +179,19 @@ const CreateOrder = () => {
   };
 
   const onFinish = async (values) => {
+    if (!organizationID) return;
     setLoading(true);
     try {
       const orderId = `order_${new Date().getTime()}`;
       const total = values.quantity * values.price;
 
-      // Fetch the selected product
       const selectedProduct = products.find(
         (product) =>
           product.title === values.product[1] &&
-          product.category === values.product[0]
+          product.categoryId === categories.find((cat) => cat.name === values.product[0])?.id
       );
       if (!selectedProduct) throw new Error('Продукт не найден.');
 
-      // Fetch all materials of the required type
       const materialsRef = collection(
         db,
         `organizations/${organizationID}/materials`
@@ -200,25 +206,21 @@ const CreateOrder = () => {
         throw new Error(`Материал "${selectedProduct.material}" не найден.`);
       }
 
-      // Extract material data
       const materialsData = materialSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
 
-      // Ensure 'dateRegistered' is a JavaScript Date object
       materialsData.forEach((material) => {
         if (material.dateRegistered && material.dateRegistered.toDate) {
           material.dateRegistered = material.dateRegistered.toDate();
         } else {
-          material.dateRegistered = new Date(0); // Default to epoch if missing
+          material.dateRegistered = new Date(0);
         }
       });
 
-      // Sort materials by 'dateRegistered' in ascending order
       materialsData.sort((a, b) => a.dateRegistered - b.dateRegistered);
 
-      // Adjusted filtering conditions
       const partiallyUsedMaterials = materialsData.filter((material) => {
         const used = material.used || 0;
         const available = material.available || 0;
@@ -243,20 +245,16 @@ const CreateOrder = () => {
         return used === 0 && available > 0 && available === initialQuantity;
       });
 
-      // Combine them, prioritizing partially used materials
       const sortedMaterials = [...partiallyUsedMaterials, ...unusedMaterials];
 
-      // Calculate total available material
       const totalAvailableMaterial = sortedMaterials.reduce(
         (total, material) => total + (material.available || 0),
         0
       );
 
-      // Calculate total material required for the order in kg
       const totalMaterialRequired =
         (values.quantity * selectedProduct.materialUsage) / 1000;
 
-      // Check if total material is sufficient
       if (totalAvailableMaterial < totalMaterialRequired) {
         const maxPossibleQuantity = Math.floor(
           (totalAvailableMaterial * 1000) / selectedProduct.materialUsage
@@ -266,7 +264,6 @@ const CreateOrder = () => {
         );
       }
 
-      // Distribute material usage across materials
       let remainingMaterialRequired = totalMaterialRequired;
       const materialUpdates = [];
 
@@ -293,7 +290,6 @@ const CreateOrder = () => {
         remainingMaterialRequired -= materialToUse;
       }
 
-      // Apply updates to materials
       const materialUpdatePromises = materialUpdates.map((update) => {
         const materialDocRef = doc(
           db,
@@ -305,7 +301,6 @@ const CreateOrder = () => {
 
       await Promise.all(materialUpdatePromises);
 
-      // **Update customer's paper info**
       const totalPaperRequired =
         (values.quantity * selectedProduct.requiredPaper) / 1000000;
 
@@ -336,7 +331,6 @@ const CreateOrder = () => {
         'paper.used': updatedUsedPaper,
       });
 
-      // **Save the order data**
       const orderData = {
         ...values,
         date: values.date ? values.date.toDate() : new Date(),
@@ -359,13 +353,11 @@ const CreateOrder = () => {
         orderData
       );
 
-      // **Show success message**
       messageApi.open({
         type: 'success',
         content: 'Заказ успешно добавлен!',
       });
 
-      // **Reset form and state**
       form.resetFields();
       setOrderPreview({ client: '', product: [], quantity: 1, price: 0 });
       setSelectedProduct(null);
@@ -385,7 +377,7 @@ const CreateOrder = () => {
     value: category.name,
     label: category.name,
     children: products
-      .filter((product) => product.category === category.name)
+      .filter((product) => product.categoryId === category.id)
       .map((product) => ({
         value: product.title,
         label: product.title,
