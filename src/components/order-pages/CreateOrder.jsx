@@ -153,7 +153,7 @@ const CreateOrder = () => {
         const product = products.find((prod) => prod.id === productId);
 
         form.setFieldsValue({
-          product: [category, product?.title],
+          product: [categoryId, productId],
           price: selectedCustomer.price,
         });
 
@@ -171,6 +171,7 @@ const CreateOrder = () => {
     }
 
     setOrderPreview(allValues);
+    console.log(allValues);
   };
 
   const formatQuantityInKg = (quantity, weightPerUnit) => {
@@ -187,8 +188,8 @@ const CreateOrder = () => {
 
       const selectedProduct = products.find(
         (product) =>
-          product.title === values.product[1] &&
-          product.categoryId === categories.find((cat) => cat.name === values.product[0])?.id
+          product.id === values.product[1] &&
+          product.categoryId === values.product[0]
       );
       if (!selectedProduct) throw new Error('Продукт не найден.');
 
@@ -343,8 +344,8 @@ const CreateOrder = () => {
           companyName: selectedCustomer?.companyName || '',
         },
         product: {
-          category: values.product ? values.product[0] : '',
-          title: values.product ? values.product[1] : '',
+          categoryId: values.product ? values.product[0] : '',
+          productId: values.product ? values.product[1] : '',
         },
       };
 
@@ -374,12 +375,12 @@ const CreateOrder = () => {
   };
 
   const productOptions = categories.map((category) => ({
-    value: category.name,
+    value: category.id,
     label: category.name,
     children: products
       .filter((product) => product.categoryId === category.id)
       .map((product) => ({
-        value: product.title,
+        value: product.id,
         label: product.title,
       })),
   }));

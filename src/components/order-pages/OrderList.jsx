@@ -64,15 +64,14 @@ const statusOptions = [
 ];
 
 const OrderList = () => {
-  const { organizationID, role } = useOutletContext(); // Get organizationID and role from context
+  const { organizationID, role } = useOutletContext();
   const [dataSource, setDataSource] = useState([]);
   const [viewMode, setViewMode] = useState('table');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState([]);
-  const [customers, setCustomers] = useState([]); // Add customers state
-
-  // State for delete modal
+  const [categories, setCategories] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deletingOrder, setDeletingOrder] = useState(null);
   const [deleteOption, setDeleteOption] = useState(null);
@@ -88,17 +87,15 @@ const OrderList = () => {
   const fetchOrdersAndProducts = async (orgID) => {
     setLoading(true);
     try {
-      // Fetch orders
-      const querySnapshot = await getDocs(
+      const ordersSnapshot = await getDocs(
         collection(db, `organizations/${orgID}/orders`)
       );
-      const orders = querySnapshot.docs.map((doc) => ({
+      const orders = ordersSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
       setDataSource(orders);
 
-      // Fetch products
       const productsSnapshot = await getDocs(
         collection(db, `organizations/${orgID}/products`)
       );
@@ -108,7 +105,15 @@ const OrderList = () => {
       }));
       setProducts(productsData);
 
-      // Fetch customers
+      const categoriesSnapshot = await getDocs(
+        collection(db, `organizations/${orgID}/product-categories`)
+      );
+      const categoriesData = categoriesSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setCategories(categoriesData);
+
       const customersSnapshot = await getDocs(
         collection(db, `organizations/${orgID}/customers`)
       );
@@ -133,7 +138,7 @@ const OrderList = () => {
       if (orderDoc.exists()) {
         const orderData = orderDoc.data();
 
-        // Find the product from the order data
+        // Find the product and category from the order data
         const selectedProduct = products.find(
           (product) => product.id === orderData.product?.productId
         );
@@ -174,9 +179,8 @@ const OrderList = () => {
           // For paper, only restore if deleteOption is 'wrongOrder'
           if (deleteOption === 'wrongOrder') {
             // Restore paper
-            // Get customer data
             const customerDoc = customers.find(
-              (customer) => customer.brand === orderData.client?.brand
+              (customer) => customer.id === orderData.client?.customerId
             );
 
             if (customerDoc) {
@@ -233,6 +237,16 @@ const OrderList = () => {
     }
   };
 
+  const getCategoryName = (categoryId) => {
+    const category = categories.find((cat) => cat.id === categoryId);
+    return category ? category.name : 'Unknown Category';
+  };
+
+  const getProductName = (productId) => {
+    const product = products.find((prod) => prod.id === productId);
+    return product ? product.title : 'Unknown Product';
+  };
+
   const renderCardView = () => {
     const filteredOrders =
       selectedStatus === 'all'
@@ -264,9 +278,9 @@ const OrderList = () => {
                 {order.client?.companyName || 'Компания не указана'}
               </Text>
               <Text style={{ display: 'block', marginBottom: 8 }}>
-                {order.product && typeof order.product === 'object'
-                  ? `${order.product.categoryName || ''} > ${
-                      order.product.productTitle || ''
+                {order.product
+                  ? `${getCategoryName(order.product.categoryId)} > ${
+                      getProductName(order.product.productId)
                     }`
                   : 'Продукт не указан'}
               </Text>
@@ -284,10 +298,7 @@ const OrderList = () => {
               </Text>
               {role === 'owner' && order.price !== undefined && (
                 <div style={{ textAlign: 'left', marginBottom: 16 }}>
-                  <Text
-                    strong
-                    style={{ fontSize: 18, color: '#000' }}
-                  >
+                  <Text strong style={{ fontSize: 18, color: '#000' }}>
                     {(order.quantity * order.price).toLocaleString('ru-RU')}
                   </Text>
                   <Text
@@ -306,9 +317,7 @@ const OrderList = () => {
                 text={
                   <>
                     {statusOption.icon}
-                    <span style={{ marginLeft: 4 }}>
-                      {statusOption.label}
-                    </span>
+                    <span style={{ marginLeft: 4 }}>{statusOption.label}</span>
                   </>
                 }
                 style={{
@@ -352,7 +361,6 @@ const OrderList = () => {
                     : 'Изменить на : Готов к отгрузке'}
                 </Text>
               </div>
-              {/* Delete button for card view */}
               <Button
                 type="link"
                 icon={<DeleteOutlined />}
@@ -397,9 +405,7 @@ const OrderList = () => {
         if (record.client?.brand && record.client?.companyName) {
           return (
             <div style={{ textAlign: 'left' }}>
-              <Text
-                style={{ fontSize: 16, fontWeight: 600, color: '#000' }}
-              >
+              <Text style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
                 {record.client.brand}
               </Text>
               <Text
@@ -422,9 +428,9 @@ const OrderList = () => {
       title: 'ПРОДУКТ',
       dataIndex: 'product',
       render: (_, record) => {
-        if (record.product && typeof record.product === 'object') {
-          return `${record.product.categoryName || ''} > ${
-            record.product.productTitle || ''
+        if (record.product) {
+          return `${getCategoryName(record.product.categoryId)} > ${
+            getProductName(record.product.productId)
           }`;
         } else {
           return 'Продукт не указан';
@@ -446,9 +452,7 @@ const OrderList = () => {
               if (record.price !== undefined) {
                 return (
                   <div style={{ textAlign: 'left' }}>
-                    <Text
-                      style={{ fontSize: 16, fontWeight: 600, color: '#000' }}
-                    >
+                    <Text style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
                       {(record.quantity * record.price).toLocaleString('ru-RU')}
                     </Text>
                     <Text
@@ -489,11 +493,7 @@ const OrderList = () => {
                 <Select.Option key={option.value} value={option.value}>
                   <Badge
                     color={option.color}
-                    text={
-                      <span style={{ marginLeft: '8px' }}>
-                        {option.label}
-                      </span>
-                    } // Add margin to the text
+                    text={<span style={{ marginLeft: '8px' }}>{option.label}</span>}
                   />
                 </Select.Option>
               ))}
@@ -543,10 +543,7 @@ const OrderList = () => {
           </Radio.Button>
         </Radio.Group>
       </div>
-      <Tabs
-        defaultActiveKey="all"
-        onChange={(key) => setSelectedStatus(key)}
-      >
+      <Tabs defaultActiveKey="all" onChange={(key) => setSelectedStatus(key)}>
         <TabPane tab="Все" key="all" />
         {statusOptions.map((option) => (
           <TabPane tab={option.label} key={option.value} />
