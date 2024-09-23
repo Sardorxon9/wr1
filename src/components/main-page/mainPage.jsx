@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification, theme, Drawer } from 'antd';
+import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification, theme, Drawer, Modal } from 'antd';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { auth, db } from '../login-signUp/firebase';
 import { getDoc, doc, collection, getDocs } from "firebase/firestore";
@@ -32,6 +32,7 @@ const MainPage = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
 
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -129,6 +130,30 @@ const MainPage = () => {
     setLoading(false);
   };
 
+  const handleLogout = () => {
+    auth.signOut().then(() => {
+      navigate('/login');
+      notification.success({
+        message: 'Успех',
+        description: 'Вы успешно вышли из системы.',
+      });
+    }).catch((error) => {
+      console.error("Error logging out:", error);
+      notification.error({
+        message: 'Ошибка',
+        description: 'Не удалось выйти из системы.',
+      });
+    });
+  };
+
+  const showLogoutModal = () => {
+    setLogoutModalVisible(true);
+  };
+
+  const hideLogoutModal = () => {
+    setLogoutModalVisible(false);
+  };
+
   const menuItems = [
     {
       key: '1',
@@ -176,11 +201,13 @@ const MainPage = () => {
     },
     {
       key: '9',
-      icon: <LogoutOutlined />,
-      label: <Link to="/" onClick={() => setDrawerVisible(false)}>Log Out</Link>,
+      icon: <LogoutOutlined style={{ color: '#f5222d' }} />, // Red color for logout icon
+      label: (
+        <Button type="link" onClick={showLogoutModal} style={{color: "#d9d9d9",  paddingLeft: 0,  }}> {/* Added margin for spacing */}
+          Выйти
+        </Button>
+      ),
     },
-    
-  
   ];
 
   return (
@@ -269,6 +296,17 @@ const MainPage = () => {
           )}
         </Content>
       </Layout>
+      {/* Logout Confirmation Modal */}
+      <Modal
+        title="Подтвердите выход"
+        visible={logoutModalVisible}
+        onOk={handleLogout}
+        onCancel={hideLogoutModal}
+        okText="Выйти"
+        cancelText="Отмена"
+      >
+        <Text>Вы уверены, что хотите выйти?</Text>
+      </Modal>
     </Layout>
   );
 };
