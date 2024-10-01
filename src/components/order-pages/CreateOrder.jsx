@@ -190,25 +190,219 @@ const CreateOrder = () => {
     try {
       const orderId = `order_${new Date().getTime()}`;
       const total = values.quantity * values.price;
-
+  
       const selectedProduct = products.find(
         (product) =>
           product.id === values.product[1] &&
           product.categoryId === values.product[0]
       );
       if (!selectedProduct) throw new Error('Продукт не найден.');
-
-      // Update Material Usage (same as before)
-      // ...
-
-      // Paper Usage Logic (same as before)
-      // ...
-
+  
+      // Update Material Usage
+      const materialsRef = collection(
+        db,
+        `organizations/${organizationID}/materials`
+      );
+      const materialQuery = query(
+        materialsRef,
+        where('type', '==', selectedProduct.material)
+      );
+      const materialSnapshot = await getDocs(materialQuery);
+  
+      if (materialSnapshot.empty) {
+        throw new Error(`Материал "${selectedProduct.material}" не найден.`);
+      }
+  
+      const materialsData = materialSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+  
+      materialsData.forEach((material) => {
+        if (material.dateRegistered && material.dateRegistered.toDate) {
+          material.dateRegistered = material.dateRegistered.toDate();
+        } else {
+          material.dateRegistered = new Date(0);
+        }
+      });
+  
+      materialsData.sort((a, b) => a.dateRegistered - b.dateRegistered);
+  
+      const partiallyUsedMaterials = materialsData.filter((material) => {
+        const used = material.used || 0;
+        const available = material.available || 0;
+        const initialQuantity = material.initialQuantity || 0;
+  
+        if (initialQuantity === 0) {
+          return used > 0 && available > 0;
+        }
+  
+        return used > 0 && available > 0 && available < initialQuantity;
+      });
+  
+      const unusedMaterials = materialsData.filter((material) => {
+        const used = material.used || 0;
+        const available = material.available || 0;
+        const initialQuantity = material.initialQuantity || 0;
+  
+        if (initialQuantity === 0) {
+          return used === 0 && available > 0;
+        }
+  
+        return used === 0 && available > 0 && available === initialQuantity;
+      });
+  
+      const sortedMaterials = [...partiallyUsedMaterials, ...unusedMaterials];
+  
+      const totalAvailableMaterial = sortedMaterials.reduce(
+        (total, material) => total + (material.available || 0),
+        0
+      );
+  
+      const totalMaterialRequired =
+        (values.quantity * selectedProduct.materialUsage) / 1000;
+  
+      if (totalAvailableMaterial < totalMaterialRequired) {
+        const maxPossibleQuantity = Math.floor(
+          (totalAvailableMaterial * 1000) / selectedProduct.materialUsage
+        );
+        throw new Error(
+          `Недостаточно материала "${selectedProduct.material}". Максимально возможное количество: ${maxPossibleQuantity}.`
+        );
+      }
+  
+      let remainingMaterialRequired = totalMaterialRequired;
+      const materialUpdates = [];
+  
+      for (const material of sortedMaterials) {
+        if (remainingMaterialRequired <= 0) break;
+  
+        const materialAvailable = material.available || 0;
+        const materialToUse = Math.min(
+          materialAvailable,
+          remainingMaterialRequired
+        );
+  
+        const updatedAvailable = materialAvailable - materialToUse;
+        const updatedUsed = (material.used || 0) + materialToUse;
+  
+        materialUpdates.push({
+          id: material.id,
+          updatedData: {
+            available: updatedAvailable,
+            used: updatedUsed,
+          },
+        });
+  
+        remainingMaterialRequired -= materialToUse;
+      }
+  
+      const materialUpdatePromises = materialUpdates.map((update) => {
+        const materialDocRef = doc(
+          db,
+          `organizations/${organizationID}/materials`,
+          update.id
+        );
+        return updateDoc(materialDocRef, update.updatedData);
+      });
+  
+      await Promise.all(materialUpdatePromises);
+  
+      // Paper Usage Logic
+      if (selectedCustomer.usesStandardPaper) {
+        // Customer uses standard paper
+        // Fetch the standard roll(s) matching the product
+        const standardRollsRef = collection(
+          db,
+          `organizations/${organizationID}/standard-rolls`
+        );
+        const standardRollsQuery = query(
+          standardRollsRef,
+          where('product.categoryId', '==', selectedProduct.categoryId),
+          where('product.productId', '==', selectedProduct.id)
+        );
+        const standardRollsSnapshot = await getDocs(standardRollsQuery);
+  
+        if (standardRollsSnapshot.empty) {
+          throw new Error('Нет стандартного рулона для данного продукта.');
+        }
+  
+        const standardRollsData = standardRollsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+  
+        // Use the first matching standard roll
+        const standardRoll = standardRollsData[0];
+  
+        // Ensure usageRate is available
+        if (!standardRoll.usageRate) {
+          throw new Error(
+            'Отсутствует поле usageRate в стандартном рулоне.'
+          );
+        }
+  
+        // Calculate paper usage based on usageRate
+        const usageRate = standardRoll.usageRate; // in grams per 1,000 units
+        const quantityInThousands = values.quantity / 1000;
+        const totalPaperRequired = (quantityInThousands * usageRate) / 1000; // Convert to kg
+  
+        if (standardRoll.remaining < totalPaperRequired) {
+          throw new Error('Недостаточно стандартной бумаги на складе.');
+        }
+  
+        // Update standard roll usage
+        const updatedUsed = (standardRoll.used || 0) + totalPaperRequired;
+        const updatedRemaining =
+          (standardRoll.remaining || 0) - totalPaperRequired;
+  
+        const standardRollDocRef = doc(
+          db,
+          `organizations/${organizationID}/standard-rolls`,
+          standardRoll.id
+        );
+        await updateDoc(standardRollDocRef, {
+          used: updatedUsed,
+          remaining: updatedRemaining,
+        });
+      } else {
+        // Customer uses custom paper
+        const totalPaperRequired =
+          (values.quantity * selectedProduct.requiredPaper) / 1000000; // Convert to kg
+  
+        if (selectedCustomer.paper.available < totalPaperRequired) {
+          const availablePaperGrams = selectedCustomer.paper.available * 1000;
+          const maxThousandUnitsPaper = Math.floor(
+            availablePaperGrams / selectedProduct.requiredPaper
+          );
+          const maxPossibleQuantityPaper = maxThousandUnitsPaper * 1000;
+  
+          throw new Error(
+            `Недостаточно бумаги. Максимально возможное количество: ${maxPossibleQuantityPaper}.`
+          );
+        }
+  
+        const updatedAvailablePaper =
+          selectedCustomer.paper.available - totalPaperRequired;
+        const updatedUsedPaper =
+          (selectedCustomer.paper.used || 0) + totalPaperRequired;
+  
+        const customerDocRef = doc(
+          db,
+          `organizations/${organizationID}/customers`,
+          selectedCustomer.id
+        );
+        await updateDoc(customerDocRef, {
+          'paper.available': updatedAvailablePaper,
+          'paper.used': updatedUsedPaper,
+        });
+      }
+  
       // Save the order data
       const selectedCategory = categories.find(
         (cat) => cat.id === values.product[0]
       );
-
+  
       const orderData = {
         ...values,
         date: values.date ? values.date.toDate() : new Date(),
@@ -228,18 +422,18 @@ const CreateOrder = () => {
           productTitle: selectedProduct?.title || '',
         },
       };
-
+  
       await setDoc(
         doc(db, `organizations/${organizationID}/orders`, orderId),
         orderData
       );
-
+  
       // Show success message
       messageApi.open({
         type: 'success',
         content: 'Заказ успешно добавлен!',
       });
-
+  
       // Reset form and state
       form.resetFields();
       setOrderPreview({ client: '', product: [], quantity: 1, price: 0 });
@@ -255,6 +449,7 @@ const CreateOrder = () => {
       setLoading(false);
     }
   };
+  
 
   const productOptions = categories.map((category) => ({
     value: category.id,

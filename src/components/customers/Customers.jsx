@@ -203,7 +203,7 @@ const Customers = () => {
           <Progress
             percent={parseFloat(formattedUsedPercent)}
             status="active"
-            strokeColor="#bae0ff"
+            
           />
           <p>
             Использовано: {roll.used.toFixed(1)} кг | Осталось:{' '}
