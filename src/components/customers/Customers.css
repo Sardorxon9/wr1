@@ -1,0 +1,13 @@
+.standard-roll-card {
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+  
+  .standard-roll-card .ant-card-head {
+    background-color: #e6f4ff;
+  }
+  
+  .standard-roll-card .ant-card-body {
+    border: none; /* Ensure no borders */
+  }
+  

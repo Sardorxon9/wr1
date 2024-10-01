@@ -10,6 +10,8 @@ import {
   InputNumber,
   DatePicker,
   Skeleton,
+  Switch,
+  Typography,
 } from 'antd';
 import {
   doc,
@@ -27,18 +29,23 @@ import {
 import './PaperCard.css'; // Create a CSS file for custom styles
 
 const { Option } = Select;
+const { Text } = Typography;
 
 const PaperCard = ({ card, roll, organizationID, refreshPaperRolls }) => {
   const [isReceiveModalVisible, setIsReceiveModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [customers, setCustomers] = useState([]);
+  const [standardRolls, setStandardRolls] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
-    const fetchCustomers = async () => {
+    const fetchData = async () => {
       setLoading(true);
       try {
+        // Fetch customers
         const customerSnapshot = await getDocs(
           collection(db, `organizations/${organizationID}/customers`)
         );
@@ -47,9 +54,39 @@ const PaperCard = ({ card, roll, organizationID, refreshPaperRolls }) => {
           brand: doc.data().brand,
         }));
         setCustomers(customerList);
+
+        // Fetch standard rolls
+        const standardRollsSnapshot = await getDocs(
+          collection(db, `organizations/${organizationID}/standard-rolls`)
+        );
+        const standardRollsList = standardRollsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setStandardRolls(standardRollsList);
+
+        // Fetch categories
+        const categoriesSnapshot = await getDocs(
+          collection(db, `organizations/${organizationID}/product-categories`)
+        );
+        const categoriesData = categoriesSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setCategories(categoriesData);
+
+        // Fetch products
+        const productsSnapshot = await getDocs(
+          collection(db, `organizations/${organizationID}/products`)
+        );
+        const productsData = productsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setProducts(productsData);
       } catch (error) {
         message.error(
-          'Ошибка при получении списка клиентов: ' + error.message
+          'Ошибка при получении данных: ' + error.message
         );
       } finally {
         setLoading(false);
@@ -57,7 +94,7 @@ const PaperCard = ({ card, roll, organizationID, refreshPaperRolls }) => {
     };
 
     if (organizationID) {
-      fetchCustomers();
+      fetchData();
     }
   }, [organizationID]);
 
@@ -65,10 +102,16 @@ const PaperCard = ({ card, roll, organizationID, refreshPaperRolls }) => {
     setModalLoading(true);
     try {
       const newRecord = {
-        ...values,
+        kg: parseFloat(values.kg),
         receiveDate: values.receiveDate.toDate(),
-        receivedKg: parseFloat(values.kg),
+        type: values.isStandardRoll ? 'standardRoll' : 'customer',
       };
+
+      if (values.isStandardRoll) {
+        newRecord.standardRollId = values.standardRollId;
+      } else {
+        newRecord.customerId = values.customerId;
+      }
 
       // Fetch the current paper roll document
       const rollRef = doc(
@@ -104,19 +147,40 @@ const PaperCard = ({ card, roll, organizationID, refreshPaperRolls }) => {
       // Update the Firestore document with the modified paperCards array
       await updateDoc(rollRef, { paperCards: updatedPaperCards });
 
-      // Update customer's available paper
-      const customerRef = doc(
-        db,
-        `organizations/${organizationID}/customers`,
-        values.customerId
-      );
-      const customerDoc = await getDoc(customerRef);
-      const currentAvailable = customerDoc.data().paper.available || 0;
-      const updatedAvailable = currentAvailable + parseFloat(values.kg);
+      if (values.isStandardRoll) {
+        // Update standard roll's remaining
+        const standardRollRef = doc(
+          db,
+          `organizations/${organizationID}/standard-rolls`,
+          values.standardRollId
+        );
+        const standardRollDoc = await getDoc(standardRollRef);
+        if (!standardRollDoc.exists()) {
+          message.error('Стандартный рулон не найден.');
+          return;
+        }
+        const standardRollData = standardRollDoc.data();
+        const currentRemaining = standardRollData.remaining || 0;
+        const updatedRemaining = currentRemaining + parseFloat(values.kg);
 
-      await updateDoc(customerRef, {
-        'paper.available': updatedAvailable,
-      });
+        await updateDoc(standardRollRef, {
+          remaining: updatedRemaining,
+        });
+      } else {
+        // Update customer's available paper
+        const customerRef = doc(
+          db,
+          `organizations/${organizationID}/customers`,
+          values.customerId
+        );
+        const customerDoc = await getDoc(customerRef);
+        const currentAvailable = customerDoc.data().paper.available || 0;
+        const updatedAvailable = currentAvailable + parseFloat(values.kg);
+
+        await updateDoc(customerRef, {
+          'paper.available': updatedAvailable,
+        });
+      }
 
       message.success('Полученная бумага успешно зарегистрирована!');
       setIsReceiveModalVisible(false);
@@ -151,12 +215,21 @@ const PaperCard = ({ card, roll, organizationID, refreshPaperRolls }) => {
       title={card.agency}
       style={{ boxShadow: '5px 8px 24px 5px rgba(208, 216, 243, 0.6)' }}
     >
-      <p style={{ color: 'gray', fontSize: 14, marginBottom: '5px' , fontWeight: 200}}>
+      <p
+        style={{
+          color: 'gray',
+          fontSize: 14,
+          marginBottom: '5px',
+          fontWeight: 200,
+        }}
+      >
         Отправлено: {formattedSentDate}
       </p>
       <p>
         Отправлено: {card.sentKg} кг |{' '}
-        <span style={{ color: '#1890ff' }}>Напечатано: {card.printedKg} кг</span>{' '}
+        <span style={{ color: '#1890ff' }}>
+          Напечатано: {card.printedKg} кг
+        </span>{' '}
         | Остаток: {card.remainingKg} кг
       </p>
       <Progress
@@ -196,23 +269,67 @@ const PaperCard = ({ card, roll, organizationID, refreshPaperRolls }) => {
           </Form.Item>
 
           <Form.Item
-            name="customerId"
-            label="Выберите клиента"
-            rules={[{ required: true }]}
+            label="Рулон стандарт дизайн"
+            name="isStandardRoll"
+            valuePropName="checked"
           >
-            <Select placeholder="Выберите клиента">
-              {customers.map((customer) => (
-                <Option key={customer.id} value={customer.id}>
-                  {customer.brand}
-                </Option>
-              ))}
-            </Select>
+            <Switch />
+          </Form.Item>
+
+          <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.isStandardRoll !== currentValues.isStandardRoll}>
+            {() =>
+              form.getFieldValue('isStandardRoll') ? (
+                // Standard roll select
+                <Form.Item
+                  name="standardRollId"
+                  label="Выберите стандартный рулон"
+                  rules={[{ required: true, message: 'Выберите стандартный рулон!' }]}
+                >
+                  <Select placeholder="Выберите стандартный рулон">
+                    {standardRolls.map((roll) => {
+                      const category = categories.find(
+                        (cat) => cat.id === roll.product.categoryId
+                      );
+                      const product = products.find(
+                        (prod) => prod.id === roll.product.productId
+                      );
+                      const categoryName = category
+                        ? category.name
+                        : 'Категория не найдена';
+                      const productName = product
+                        ? product.title
+                        : 'Продукт не найден';
+                      return (
+                        <Option key={roll.id} value={roll.id}>
+                          {categoryName} → {productName}
+                        </Option>
+                      );
+                    })}
+                  </Select>
+                </Form.Item>
+              ) : (
+                // Customer select
+                <Form.Item
+                  name="customerId"
+                  label="Выберите клиента"
+                  rules={[{ required: true, message: 'Выберите клиента!' }]}
+                >
+                  <Select placeholder="Выберите клиента">
+                    {customers.map((customer) => (
+                      <Option key={customer.id} value={customer.id}>
+                        {customer.brand}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              )
+            }
           </Form.Item>
 
           <Form.Item
             name="receiveDate"
             label="Дата получения"
-            rules={[{ required: true }]}
+            rules={[{ required: true, message: 'Выберите дату получения!' }]}
           >
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
@@ -224,25 +341,51 @@ const PaperCard = ({ card, roll, organizationID, refreshPaperRolls }) => {
         <Skeleton active />
       ) : card.receivedRecords && card.receivedRecords.length > 0 ? (
         card.receivedRecords.map((record, index) => {
-          const customer = customers.find(
-            (c) => c.id === record.customerId
-          );
+          let name;
+          if (record.type === 'customer') {
+            const customer = customers.find((c) => c.id === record.customerId);
+            name = customer ? customer.brand : 'Неизвестный клиент';
+          } else if (record.type === 'standardRoll') {
+            const standardRoll = standardRolls.find(
+              (sr) => sr.id === record.standardRollId
+            );
+            if (standardRoll) {
+              const category = categories.find(
+                (cat) => cat.id === standardRoll.product.categoryId
+              );
+              const product = products.find(
+                (prod) => prod.id === standardRoll.product.productId
+              );
+              const categoryName = category
+                ? category.name
+                : 'Категория не найдена';
+              const productName = product
+                ? product.title
+                : 'Продукт не найден';
+              name = `Стандарт дизайн: ${categoryName} → ${productName}`;
+            } else {
+              name = 'Стандартный рулон не найден';
+            }
+          } else {
+            name = 'Неизвестный тип';
+          }
+
           const receiveDate =
             record.receiveDate instanceof Date
               ? record.receiveDate
               : record.receiveDate.toDate
               ? record.receiveDate.toDate()
-              : new Date(record.receiveDate.seconds * 1000); // Handle Timestamp
+              : new Date(record.receiveDate.seconds * 1000);
 
           return (
             <p key={index} style={{ marginBottom: '10px' }}>
               <span style={{ marginRight: '20px' }}>
                 <UserOutlined style={{ marginRight: '6px' }} />
-                {customer ? customer.brand : 'Неизвестный клиент'}
+                {name}
               </span>
               <span style={{ marginRight: '20px' }}>
                 <FileDoneOutlined style={{ marginRight: '6px' }} />
-                {record.receivedKg} кг
+                {record.kg} кг
               </span>
               <span>
                 <CalendarOutlined style={{ marginRight: '6px' }} />

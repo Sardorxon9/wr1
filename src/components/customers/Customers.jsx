@@ -9,496 +9,432 @@ import {
   Cascader,
   message,
   Typography,
-  Empty,
-  Space,
+  Tabs,
+  Card,
+  Progress,
 } from 'antd';
 import {
   collection,
   addDoc,
   getDocs,
-  doc,
-  updateDoc,
-  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
-import {
-  ExclamationCircleOutlined,
-  EditOutlined,
-  DeleteOutlined,
-} from '@ant-design/icons';
-import PhoneInput from 'react-phone-input-2';
-import 'react-phone-input-2/lib/style.css';
+import './Customers.css'; // Import CSS for custom styles
 
 const { Title, Text } = Typography;
-const { confirm } = Modal;
+const { TabPane } = Tabs;
 
 const Customers = () => {
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [cascaderOptions, setCascaderOptions] = useState([]);
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [standardRolls, setStandardRolls] = useState([]);
+  const [isCustomerModalVisible, setIsCustomerModalVisible] = useState(false);
+  const [isRollModalVisible, setIsRollModalVisible] = useState(false);
   const [form] = Form.useForm();
+  const [rollForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [buttonLoading, setButtonLoading] = useState(false);
-  const { organizationID, role } = useOutletContext();
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentCustomer, setCurrentCustomer] = useState(null);
+  const { organizationID } = useOutletContext();
+  const [activeTab, setActiveTab] = useState('1'); // Track the active tab
+  const [isStandardPaper, setIsStandardPaper] = useState(false); // New state variable
 
   useEffect(() => {
-    const fetchProductsCategoriesAndCustomers = async () => {
-      if (organizationID) {
-        try {
-          // Fetch categories
-          const categoriesSnapshot = await getDocs(
-            collection(db, `organizations/${organizationID}/product-categories`)
-          );
-          const categoriesData = categoriesSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          setCategories(categoriesData);
-
-          // Fetch products
-          const productsSnapshot = await getDocs(
-            collection(db, `organizations/${organizationID}/products`)
-          );
-          const productsData = productsSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
-          setProducts(productsData);
-
-          // Cascader options: map categories to their products using IDs
-          const options = categoriesData.map((category) => ({
-            value: category.id, // Use category ID
-            label: category.name,
-            children: productsData
-              .filter((product) => product.categoryId === category.id)
-              .map((product) => ({
-                value: product.id, // Use product ID
-                label: product.title,
-              })),
-          }));
-          setCascaderOptions(options);
-
-          // Fetch customers
-          const customersSnapshot = await getDocs(
-            collection(db, `organizations/${organizationID}/customers`)
-          );
-          const customersData = customersSnapshot.docs.map((doc) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              ...data,
-              paper: data.paper || { used: 0, available: 0, remaining: 0 },
-            };
-          });
-          setCustomers(customersData);
-        } catch (error) {
-          message.error('Ошибка при загрузке данных: ' + error.message);
-        }
-      }
-      setLoading(false);
-    };
-
-    fetchProductsCategoriesAndCustomers();
+    if (organizationID) {
+      fetchProductsCategoriesAndCustomers();
+      fetchStandardRolls();
+    }
   }, [organizationID]);
 
-  const showModal = (customer) => {
-    if (customer) {
-      setIsEditing(true);
-      setCurrentCustomer(customer);
-      form.setFieldsValue({
-        ...customer,
-        product: [customer.product.categoryId, customer.product.productId],
-        availablePaper: customer.paper?.available || 0,
-        phone: customer.phone || '',
-      });
-    } else {
-      setIsEditing(false);
-      form.resetFields();
+  const fetchProductsCategoriesAndCustomers = async () => {
+    try {
+      const [categoriesSnapshot, productsSnapshot, customersSnapshot] =
+        await Promise.all([
+          getDocs(
+            collection(
+              db,
+              `organizations/${organizationID}/product-categories`
+            )
+          ),
+          getDocs(collection(db, `organizations/${organizationID}/products`)),
+          getDocs(collection(db, `organizations/${organizationID}/customers`)),
+        ]);
+
+      const categoriesData = categoriesSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      const productsData = productsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      const customersData = customersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        paper: doc.data().paper || { used: 0, available: 0, remaining: 0 },
+      }));
+
+      setCategories(categoriesData);
+      setProducts(productsData);
+      setCascaderOptions(
+        categoriesData.map((category) => ({
+          value: category.id,
+          label: category.name,
+          children: productsData
+            .filter((p) => p.categoryId === category.id)
+            .map((p) => ({
+              value: p.id,
+              label: p.title,
+            })),
+        }))
+      );
+      setCustomers(customersData);
+    } catch (error) {
+      message.error('Ошибка при загрузке данных');
+    } finally {
+      setLoading(false);
     }
-    setIsModalVisible(true);
   };
 
-  const handleCancel = () => {
-    setIsModalVisible(false);
-    setIsEditing(false);
-    setCurrentCustomer(null);
-    form.resetFields();
+  const fetchStandardRolls = async () => {
+    const rollsSnapshot = await getDocs(
+      collection(db, `organizations/${organizationID}/standard-rolls`)
+    );
+    const rollsData = rollsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setStandardRolls(rollsData);
   };
 
   const handleSaveCustomer = async (values) => {
     setButtonLoading(true);
     try {
-      const availablePaper = parseFloat(values.availablePaper) || 0;
-
       const [categoryId, productId] = values.product;
+      const customerData = {
+        ...values,
+        product: { categoryId, productId },
+        usesStandardPaper: isStandardPaper,
+      };
 
-      if (isEditing && currentCustomer) {
-        // Update existing customer
-        const customerRef = doc(
-          db,
-          `organizations/${organizationID}/customers`,
-          currentCustomer.id
-        );
-        await updateDoc(customerRef, {
-          ...values,
-          product: {
-            categoryId,
-            productId,
-          },
-          paper: {
-            ...currentCustomer.paper,
-            available: availablePaper,
-          },
-        });
-        message.success('Клиент успешно обновлен!');
-        // Update the state
-        setCustomers(
-          customers.map((c) =>
-            c.id === currentCustomer.id
-              ? {
-                  ...c,
-                  ...values,
-                  product: {
-                    categoryId,
-                    productId,
-                  },
-                  paper: {
-                    ...currentCustomer.paper,
-                    available: availablePaper,
-                  },
-                }
-              : c
-          )
-        );
-      } else {
-        // Add new customer
-        await addDoc(
-          collection(db, `organizations/${organizationID}/customers`),
-          {
-            ...values,
-            product: {
-              categoryId,
-              productId,
-            },
-            paper: {
-              used: 0,
-              available: availablePaper,
-              remaining: availablePaper,
-            },
-          }
-        );
-        message.success('Клиент успешно добавлен!');
-        // Fetch the customers again to get the new customer with its ID
-        const customersSnapshot = await getDocs(
-          collection(db, `organizations/${organizationID}/customers`)
-        );
-        const customersData = customersSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setCustomers(customersData);
+      if (!isStandardPaper) {
+        const availablePaper = parseFloat(values.availablePaper) || 0;
+        customerData.paper = {
+          used: 0,
+          available: availablePaper,
+          remaining: availablePaper,
+        };
       }
-      setIsModalVisible(false);
+
+      await addDoc(
+        collection(db, `organizations/${organizationID}/customers`),
+        customerData
+      );
+      fetchProductsCategoriesAndCustomers();
+      message.success('Клиент добавлен!');
+      setIsCustomerModalVisible(false);
       form.resetFields();
     } catch (error) {
-      message.error('Ошибка при сохранении клиента: ' + error.message);
+      message.error('Ошибка при сохранении клиента');
     } finally {
       setButtonLoading(false);
-      setIsEditing(false);
-      setCurrentCustomer(null);
     }
   };
 
-  const getProductNameById = (productId) => {
-    const product = products.find((p) => p.id === productId);
-    return product ? product.title : 'Unknown Product';
-  };
-
-  const getCategoryNameById = (categoryId) => {
-    const category = categories.find((c) => c.id === categoryId);
-    return category ? category.name : 'Unknown Category';
-  };
-
-  const handleEditCustomer = (customer) => {
-    showModal(customer);
-  };
-
-  const handleDeleteCustomer = (customer) => {
-    confirm({
-      title: 'Вы уверены, что хотите удалить этого клиента?',
-      icon: <ExclamationCircleOutlined />,
-      content: 'Это действие нельзя будет отменить.',
-      okText: 'Да',
-      okType: 'danger',
-      cancelText: 'Отмена',
-      onOk: async () => {
-        try {
-          await deleteDoc(
-            doc(db, `organizations/${organizationID}/customers`, customer.id)
-          );
-          message.success('Клиент успешно удален!');
-          setCustomers(customers.filter((c) => c.id !== customer.id));
-        } catch (error) {
-          message.error('Ошибка при удалении клиента: ' + error.message);
+  const handleCreateStandardRoll = async (values) => {
+    try {
+      await addDoc(
+        collection(db, `organizations/${organizationID}/standard-rolls`),
+        {
+          ...values,
+          used: 0,
+          remaining: values.kg,
+          product: {
+            categoryId: values.product[0],
+            productId: values.product[1],
+          },
+          usageRate: values.usageRate, // Include usageRate
         }
-      },
-    });
+      );
+      fetchStandardRolls();
+      setIsRollModalVisible(false);
+      rollForm.resetFields();
+      message.success('Стандартный рулон добавлен!');
+    } catch (error) {
+      message.error('Ошибка при добавлении стандартного рулона');
+    }
   };
 
-  const columns = [
-    {
-      title: 'Бренд',
-      dataIndex: 'brand',
-      key: 'brand',
-      width: 150,
-      render: (text, record) => (
-        <>
-          <Text
-            strong={record.paper?.available === 0}
-            style={{
-              color: record.paper?.available === 0 ? 'red' : 'black',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {text}
-          </Text>
-          {record.paper?.available === 0 && (
-            <ExclamationCircleOutlined style={{ color: 'red', marginLeft: 8 }} />
-          )}
-        </>
-      ),
-    },
-    {
-      title: 'Компания',
-      dataIndex: 'companyName',
-      key: 'companyName',
-      width: 150,
-      render: (text) => (
-        <div style={{ whiteSpace: 'nowrap' }}>
-          {text}
-        </div>
-      ),
-    },
-    {
-      title: 'Контактное лицо',
-      dataIndex: 'personInCharge',
-      key: 'personInCharge',
-      width: 150,
-      render: (text) => (
-        <div style={{ whiteSpace: 'nowrap' }}>
-          {text}
-        </div>
-      ),
-    },
-    {
-      title: 'Продукт',
-      dataIndex: 'product',
-      key: 'product',
-      width: 200,
-      render: (product) => {
-        const categoryId = product?.categoryId;
-        const productId = product?.productId;
+  const renderStandardRollsCards = () =>
+    standardRolls.map((roll) => {
+      const usedPercent = (roll.used / roll.kg) * 100;
+      const formattedUsedPercent = usedPercent.toFixed(2);
+  
+      // Get category and product names
+      const category = categories.find(
+        (cat) => cat.id === roll.product.categoryId
+      );
+      const product = products.find(
+        (prod) => prod.id === roll.product.productId
+      );
+  
+      const categoryName = category ? category.name : 'Категория не найдена';
+      const productName = product ? product.title : 'Продукт не найден';
+  
+      return (
+        <Card
+          key={roll.id}
+          className="standard-roll-card"
+          title={
+            <>
+              <Text type="secondary">Стандартная бумага</Text> →{' '}
+              <Text strong>{categoryName}</Text> →{' '}
+              <Text strong>{productName}</Text>
+            </>
+          }
+          style={{
+            marginBottom: '20px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          }}
+          headStyle={{ backgroundColor: '#e6f4ff' }}
+        >
+          <Progress
+            percent={parseFloat(formattedUsedPercent)}
+            status="active"
+            strokeColor="#bae0ff"
+          />
+          <p>
+            Использовано: {roll.used.toFixed(1)} кг | Осталось:{' '}
+            {roll.remaining.toFixed(1)} кг
+          </p>
+        </Card>
+      );
+    });
+  
 
-        const categoryName = getCategoryNameById(categoryId);
-        const productName = getProductNameById(productId);
-
-        return (
-          <div style={{ whiteSpace: 'nowrap' }}>
-            <Text type="secondary">{categoryName}</Text> {' → '}
-            <Text>{productName}</Text>
-          </div>
-        );
-      },
-    },
-    ...(role === 'owner' ? [
+  const renderCustomersTable = (customersList, isStandardPaperTab) => {
+    const columns = [
+      { title: 'Бренд', dataIndex: 'brand', key: 'brand' },
+      { title: 'Компания', dataIndex: 'companyName', key: 'companyName' },
       {
         title: 'Цена (сум)',
         dataIndex: 'price',
         key: 'price',
-        width: 100,
-        render: (price) => (
-          <div style={{ whiteSpace: 'nowrap' }}>
-            {price.toLocaleString()}
-          </div>
-        ),
+        render: (price) =>
+          price ? price.toLocaleString('ru-RU') + ' сум' : 'Цена не указана',
       },
-    ] : []),
-    {
+    ];
+
+    if (!isStandardPaperTab) {
+      columns.push({
+        title: 'Доступная бумага (кг)',
+        dataIndex: ['paper', 'available'],
+        key: 'availablePaper',
+        render: (value) => (value !== undefined ? value.toFixed(1) : '-'),
+      });
+    } else {
+      columns.push({
+        title: 'Продукт',
+        dataIndex: 'product',
+        key: 'product',
+        render: (product) => {
+          const category = categories.find(
+            (cat) => cat.id === product.categoryId
+          );
+          const productData = products.find(
+            (prod) => prod.id === product.productId
+          );
+          const categoryName = category ? category.name : 'Категория не найдена';
+          const productName = productData ? productData.title : 'Продукт не найден';
+          return `${categoryName} → ${productName}`;
+        },
+      });
+    }
+
+    columns.push({
       title: 'Использованная бумага (кг)',
       dataIndex: ['paper', 'used'],
       key: 'paperUsed',
-      width: 150,
-      render: (used) => {
-        const usedNumber = parseFloat(used);
-        if (isNaN(usedNumber)) {
-          return '0 кг';
-        } else {
-          return usedNumber.toFixed(1) + ' кг';
-        }
-      },
-    },
-    {
-      title: 'Доступная бумага (кг)',
-      dataIndex: ['paper', 'available'],
-      key: 'paperAvailable',
-      width: 150,
-      render: (available) => {
-        const availableNumber = parseFloat(available);
-        if (isNaN(availableNumber)) {
-          return '0 кг';
-        } else {
-          return availableNumber.toFixed(1) + ' кг';
-        }
-      },
-    },
-    ...(role === 'owner' ? [
-      {
-        title: 'Действия',
-        key: 'actions',
-        width: 100,
-        render: (text, record) => (
-          <Space size="middle">
-            <Button
-              type="link"
-              icon={<EditOutlined />}
-              onClick={() => handleEditCustomer(record)}
-            />
-            <Button
-              type="link"
-              icon={<DeleteOutlined style={{ color: 'red' }} />}
-              onClick={() => handleDeleteCustomer(record)}
-            />
-          </Space>
-        ),
-      },
-    ] : []),
-  ];
+      render: (value) => (value !== undefined ? value.toFixed(1) : '-'),
+    });
+
+    return (
+      <Table
+        dataSource={customersList}
+        columns={columns}
+        rowKey="id"
+        pagination={{ pageSize: 5 }}
+      />
+    );
+  };
 
   return (
     <div>
       <Title level={2}>Клиенты</Title>
-      {role === 'owner' && (
-        <Button
-          type="primary"
-          onClick={() => showModal(null)}
-          style={{ marginBottom: 20 }}
-        >
-          Добавить нового клиента
-        </Button>
-      )}
-      {customers.length === 0 && !loading ? (
-        <Empty
-          description={
-            <span>
-              Клиенты не зарегистрированы. Пожалуйста, нажмите кнопку ниже, чтобы
-              начать регистрацию клиентов.
-            </span>
-          }
-        />
-      ) : (
-        <Table
-          dataSource={customers}
-          columns={columns}
-          rowKey="id"
-          loading={loading}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: true }}
-        />
-      )}
-
+      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+        <TabPane tab="Индивидуальная бумага" key="1">
+          <Button
+            type="primary"
+            onClick={() => {
+              setIsCustomerModalVisible(true);
+              setIsStandardPaper(false);
+            }}
+            style={{ marginBottom: 20 }}
+          >
+            Добавить нового клиента
+          </Button>
+          {renderCustomersTable(
+            customers.filter((c) => !c.usesStandardPaper),
+            false
+          )}
+        </TabPane>
+  
+        <TabPane tab="Стандартная бумага" key="2">
+          <Button
+            type="dashed"
+            onClick={() => setIsRollModalVisible(true)}
+            style={{ marginBottom: 20 }}
+          >
+            Создать стандартный рулон
+          </Button>
+          {renderStandardRollsCards()}
+          {/* Align button and title */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 20,
+            }}
+          >
+            <Title level={4} style={{ margin: 0 }}>
+              Клиенты со стандартной бумагой
+            </Title>
+            <Button
+              type="primary"
+              onClick={() => {
+                setIsCustomerModalVisible(true);
+                setIsStandardPaper(true);
+              }}
+            >
+              Добавить клиента со стандартной бумагой
+            </Button>
+          </div>
+          {renderCustomersTable(
+            customers.filter((c) => c.usesStandardPaper),
+            true
+          )}
+        </TabPane>
+      </Tabs>
+  
+      {/* Customer Modal */}
       <Modal
-        title={isEditing ? 'Редактировать клиента' : 'Добавить нового клиента'}
-        visible={isModalVisible}
-        onCancel={handleCancel}
+        title={
+          isStandardPaper
+            ? 'Добавить клиента со стандартной бумагой'
+            : 'Добавить клиента с индивидуальной бумагой'
+        }
+        visible={isCustomerModalVisible}
+        onCancel={() => setIsCustomerModalVisible(false)}
         onOk={form.submit}
-        okText={isEditing ? 'Сохранить изменения' : 'Добавить'}
-        cancelText="Отмена"
         confirmLoading={buttonLoading}
       >
         <Form form={form} layout="vertical" onFinish={handleSaveCustomer}>
           <Form.Item
             name="companyName"
             label="Название компании"
-            rules={[
-              { required: true, message: 'Пожалуйста, введите название компании!' },
-            ]}
+            rules={[{ required: true, message: 'Введите название компании!' }]}
           >
             <Input />
           </Form.Item>
           <Form.Item
             name="brand"
             label="Бренд"
-            rules={[{ required: true, message: 'Пожалуйста, введите бренд!' }]}
+            rules={[{ required: true, message: 'Введите бренд!' }]}
           >
             <Input />
           </Form.Item>
           <Form.Item
             name="personInCharge"
             label="Контактное лицо"
-            rules={[
-              {
-                required: true,
-                message: 'Пожалуйста, введите имя контактного лица!',
-              },
-            ]}
+            rules={[{ required: true, message: 'Введите контактное лицо!' }]}
           >
             <Input />
           </Form.Item>
           <Form.Item
             name="product"
             label="Продукт"
-            rules={[{ required: true, message: 'Пожалуйста, выберите продукт!' }]}
+            rules={[{ required: true, message: 'Выберите продукт!' }]}
           >
-            <Cascader options={cascaderOptions} placeholder="Выберите продукт" />
+            <Cascader options={cascaderOptions} />
           </Form.Item>
           <Form.Item
             name="price"
             label="Цена (сум)"
-            rules={[{ required: true, message: 'Пожалуйста, введите цену!' }]}
+            rules={[{ required: true, message: 'Введите цену!' }]}
           >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
+          {!isStandardPaper && (
+            <Form.Item
+              name="availablePaper"
+              label="Доступная бумага (кг)"
+              rules={[
+                { required: true, message: 'Введите количество бумаги!' },
+              ]}
+            >
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+          )}
+        </Form>
+      </Modal>
+  
+      {/* Standard Roll Creation Modal */}
+      <Modal
+        title="Создать стандартный рулон"
+        visible={isRollModalVisible}
+        onCancel={() => setIsRollModalVisible(false)}
+        onOk={rollForm.submit}
+        confirmLoading={buttonLoading}
+      >
+        <Form
+          form={rollForm}
+          layout="vertical"
+          onFinish={handleCreateStandardRoll}
+        >
           <Form.Item
-            name="availablePaper"
-            label="Доступная бумага (кг)"
+            name="product"
+            label="Продукт"
+            rules={[{ required: true, message: 'Выберите продукт!' }]}
+          >
+            <Cascader options={cascaderOptions} />
+          </Form.Item>
+          <Form.Item
+            name="kg"
+            label="Количество (кг)"
+            rules={[{ required: true, message: 'Введите количество (кг)!' }]}
+          >
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="usageRate"
+            label="Бумага, необходимая для производства 1,000 шт (гр)"
             rules={[
               {
                 required: true,
-                message: 'Пожалуйста, введите количество доступной бумаги!',
+                message: 'Введите необходимое количество бумаги!',
               },
             ]}
           >
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item
-            name="phone"
-            label="Телефон"
-            rules={[
-              { required: true, message: 'Пожалуйста, введите номер телефона!' },
-            ]}
-          >
-            <PhoneInput
-              country={'uz'}
-              onlyCountries={['uz']}
-              countryCodeEditable={false}
-              placeholder="Введите номер телефона"
-              inputStyle={{ width: '100%' }}
-              containerStyle={{ width: '100%' }}
-              inputProps={{
-                required: true,
-              }}
-            />
-          </Form.Item>
         </Form>
       </Modal>
     </div>
   );
+  
 };
 
 export default Customers;
