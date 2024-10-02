@@ -21,6 +21,7 @@ import {
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
 import './Customers.css'; // Import CSS for custom styles
+import { PlusCircleOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -295,7 +296,8 @@ const Customers = () => {
           <Button
             type="dashed"
             onClick={() => setIsRollModalVisible(true)}
-            style={{ marginBottom: 20 }}
+            style={{ marginBottom: 20, marginTop:10 }}
+            icon={<PlusCircleOutlined/>}
           >
             Создать стандартный рулон
           </Button>

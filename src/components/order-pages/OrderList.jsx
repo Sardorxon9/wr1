@@ -28,6 +28,8 @@ import {
   getDoc,
   updateDoc,
   deleteDoc,
+  query,
+  where,
 } from 'firebase/firestore';
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
@@ -132,27 +134,30 @@ const OrderList = () => {
 
   const handleDeleteOrder = async (id, deleteOption) => {
     try {
-      const orderDoc = await getDoc(
-        doc(db, `organizations/${organizationID}/orders`, id)
-      );
+      const orderDocRef = doc(db, `organizations/${organizationID}/orders`, id);
+      const orderDoc = await getDoc(orderDocRef);
       if (orderDoc.exists()) {
         const orderData = orderDoc.data();
 
-        // Find the product and category from the order data
+        // Find the product from the order data
         const selectedProduct = products.find(
           (product) => product.id === orderData.product?.productId
         );
 
         if (selectedProduct) {
           // Get the material related to the product
-          const materialsSnapshot = await getDocs(
-            collection(db, `organizations/${organizationID}/materials`)
+          const materialsRef = collection(
+            db,
+            `organizations/${organizationID}/materials`
           );
-          const materialDoc = materialsSnapshot.docs.find(
-            (doc) => doc.data().type === selectedProduct.material
+          const materialQuery = query(
+            materialsRef,
+            where('type', '==', selectedProduct.title)
           );
+          const materialSnapshot = await getDocs(materialQuery);
 
-          if (materialDoc) {
+          if (!materialSnapshot.empty) {
+            const materialDoc = materialSnapshot.docs[0];
             const materialDocRef = doc(
               db,
               `organizations/${organizationID}/materials`,
@@ -176,35 +181,88 @@ const OrderList = () => {
             });
           }
 
-          // For paper, only restore if deleteOption is 'wrongOrder'
+          // Restore paper if deleteOption is 'wrongOrder'
           if (deleteOption === 'wrongOrder') {
-            // Restore paper
+            // Get the customer data
             const customerDoc = customers.find(
-              (customer) => customer.id === orderData.client?.customerId
+              (customer) => customer.id === orderData.client?.id
             );
 
             if (customerDoc) {
-              const customerDocRef = doc(
-                db,
-                `organizations/${organizationID}/customers`,
-                customerDoc.id
-              );
-              const paperData = customerDoc.paper || {};
+              const customerData = customerDoc;
+              const usesStandardPaper = customerData.usesStandardPaper;
 
-              // Calculate paper used in the order
-              const totalPaperRequired =
-                (orderData.quantity * selectedProduct.requiredPaper) / 1000000; // grams to kg
+              if (usesStandardPaper) {
+                // Customer uses standard paper (standard label customer)
+                // Fetch the standard roll(s) matching the product
+                const standardRollsRef = collection(
+                  db,
+                  `organizations/${organizationID}/standard-rolls`
+                );
+                const standardRollsQuery = query(
+                  standardRollsRef,
+                  where('product.categoryId', '==', selectedProduct.categoryId),
+                  where('product.productId', '==', selectedProduct.id)
+                );
+                const standardRollsSnapshot = await getDocs(standardRollsQuery);
 
-              // Update paper stock
-              const updatedPaperUsed =
-                (paperData.used || 0) - totalPaperRequired;
-              const updatedPaperAvailable =
-                (paperData.available || 0) + totalPaperRequired;
+                if (!standardRollsSnapshot.empty) {
+                  const standardRollsData = standardRollsSnapshot.docs.map(
+                    (doc) => ({
+                      id: doc.id,
+                      ...doc.data(),
+                    })
+                  );
 
-              await updateDoc(customerDocRef, {
-                'paper.used': updatedPaperUsed,
-                'paper.available': updatedPaperAvailable,
-              });
+                  // Use the first matching standard roll
+                  const standardRoll = standardRollsData[0];
+
+                  // Calculate paper used in the order
+                  const usageRate = standardRoll.usageRate; // in grams per 1,000 units
+                  const quantityInThousands = orderData.quantity / 1000;
+                  const totalPaperRequired =
+                    (quantityInThousands * usageRate) / 1000; // Convert to kg
+
+                  // Update standard roll usage
+                  const updatedUsed = (standardRoll.used || 0) - totalPaperRequired;
+                  const updatedRemaining =
+                    (standardRoll.remaining || 0) + totalPaperRequired;
+
+                  const standardRollDocRef = doc(
+                    db,
+                    `organizations/${organizationID}/standard-rolls`,
+                    standardRoll.id
+                  );
+
+                  await updateDoc(standardRollDocRef, {
+                    used: updatedUsed,
+                    remaining: updatedRemaining,
+                  });
+                }
+              } else {
+                // Customer uses custom paper (custom label customer)
+                const customerDocRef = doc(
+                  db,
+                  `organizations/${organizationID}/customers`,
+                  customerDoc.id
+                );
+                const paperData = customerData.paper || {};
+
+                // Calculate paper used in the order
+                const totalPaperRequired =
+                  (orderData.quantity * selectedProduct.requiredPaper) / 1000000; // grams to kg
+
+                // Update paper stock
+                const updatedPaperUsed =
+                  (paperData.used || 0) - totalPaperRequired;
+                const updatedPaperAvailable =
+                  (paperData.available || 0) + totalPaperRequired;
+
+                await updateDoc(customerDocRef, {
+                  'paper.used': updatedPaperUsed,
+                  'paper.available': updatedPaperAvailable,
+                });
+              }
             }
           }
         }
@@ -452,7 +510,9 @@ const OrderList = () => {
               if (record.price !== undefined) {
                 return (
                   <div style={{ textAlign: 'left' }}>
-                    <Text style={{ fontSize: 16, fontWeight: 600, color: '#000' }}>
+                    <Text
+                      style={{ fontSize: 16, fontWeight: 600, color: '#000' }}
+                    >
                       {(record.quantity * record.price).toLocaleString('ru-RU')}
                     </Text>
                     <Text
@@ -493,7 +553,9 @@ const OrderList = () => {
                 <Select.Option key={option.value} value={option.value}>
                   <Badge
                     color={option.color}
-                    text={<span style={{ marginLeft: '8px' }}>{option.label}</span>}
+                    text={
+                      <span style={{ marginLeft: '8px' }}>{option.label}</span>
+                    }
                   />
                 </Select.Option>
               ))}
