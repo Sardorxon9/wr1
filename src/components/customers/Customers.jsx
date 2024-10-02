@@ -38,7 +38,7 @@ const Customers = () => {
   const [rollForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [buttonLoading, setButtonLoading] = useState(false);
-  const { organizationID } = useOutletContext();
+  const { organizationID, role } = useOutletContext(); // Include role
   const [activeTab, setActiveTab] = useState('1'); // Track the active tab
   const [isStandardPaper, setIsStandardPaper] = useState(false); // New state variable
 
@@ -129,6 +129,11 @@ const Customers = () => {
         };
       }
 
+      // If price is undefined (member role), remove it from customerData
+      if (role === 'member') {
+        delete customerData.price;
+      }
+
       await addDoc(
         collection(db, `organizations/${organizationID}/customers`),
         customerData
@@ -172,7 +177,7 @@ const Customers = () => {
     standardRolls.map((roll) => {
       const usedPercent = (roll.used / roll.kg) * 100;
       const formattedUsedPercent = usedPercent.toFixed(2);
-  
+
       // Get category and product names
       const category = categories.find(
         (cat) => cat.id === roll.product.categoryId
@@ -180,10 +185,10 @@ const Customers = () => {
       const product = products.find(
         (prod) => prod.id === roll.product.productId
       );
-  
+
       const categoryName = category ? category.name : 'Категория не найдена';
       const productName = product ? product.title : 'Продукт не найден';
-  
+
       return (
         <Card
           key={roll.id}
@@ -204,7 +209,6 @@ const Customers = () => {
           <Progress
             percent={parseFloat(formattedUsedPercent)}
             status="active"
-            
           />
           <p>
             Использовано: {roll.used.toFixed(1)} кг | Осталось:{' '}
@@ -213,19 +217,47 @@ const Customers = () => {
         </Card>
       );
     });
-  
 
   const renderCustomersTable = (customersList, isStandardPaperTab) => {
     const columns = [
       { title: 'Бренд', dataIndex: 'brand', key: 'brand' },
       { title: 'Компания', dataIndex: 'companyName', key: 'companyName' },
       {
-        title: 'Цена (сум)',
-        dataIndex: 'price',
-        key: 'price',
-        render: (price) =>
-          price ? price.toLocaleString('ru-RU') + ' сум' : 'Цена не указана',
+        title: 'Продукт',
+        dataIndex: 'product',
+        key: 'product',
+        render: (product) => {
+          if (!product) {
+            return 'Продукт не указан';
+          }
+          const category = categories.find(
+            (cat) => cat.id === product.categoryId
+          );
+          const productData = products.find(
+            (prod) => prod.id === product.productId
+          );
+          const categoryName = category ? category.name : 'Категория не найдена';
+          const productName = productData ? productData.title : 'Продукт не найден';
+    
+          return (
+            <Text style={{ color: '#8c8c8c', fontWeight: 'lighter' }}>
+              {`${categoryName} → ${productName}`}
+            </Text>
+          );
+        },
       },
+      // Conditionally include the Price column
+      ...(role !== 'member'
+        ? [
+            {
+              title: 'Цена (сум)',
+              dataIndex: 'price',
+              key: 'price',
+              render: (price) =>
+                price ? price.toLocaleString('ru-RU') + ' сум' : 'Цена не указана',
+            },
+          ]
+        : []),
     ];
 
     if (!isStandardPaperTab) {
@@ -291,13 +323,13 @@ const Customers = () => {
             false
           )}
         </TabPane>
-  
+
         <TabPane tab="Стандартная бумага" key="2">
           <Button
             type="dashed"
             onClick={() => setIsRollModalVisible(true)}
-            style={{ marginBottom: 20, marginTop:10 }}
-            icon={<PlusCircleOutlined/>}
+            style={{ marginBottom: 20, marginTop: 10 }}
+            icon={<PlusCircleOutlined />}
           >
             Создать стандартный рулон
           </Button>
@@ -312,7 +344,7 @@ const Customers = () => {
               marginTop: 20,
             }}
           >
-            <Title level={4} style={{ margin: 0,  }}>
+            <Title level={4} style={{ margin: 0 }}>
               Клиенты со стандартной этикеткой
             </Title>
             <Button
@@ -331,7 +363,7 @@ const Customers = () => {
           )}
         </TabPane>
       </Tabs>
-  
+
       {/* Customer Modal */}
       <Modal
         title={
@@ -373,13 +405,16 @@ const Customers = () => {
           >
             <Cascader options={cascaderOptions} />
           </Form.Item>
-          <Form.Item
-            name="price"
-            label="Цена (сум)"
-            rules={[{ required: true, message: 'Введите цену!' }]}
-          >
-            <InputNumber min={0} style={{ width: '100%' }} />
-          </Form.Item>
+          {/* Conditionally render the Price field */}
+          {role !== 'member' && (
+            <Form.Item
+              name="price"
+              label="Цена (сум)"
+              rules={[{ required: true, message: 'Введите цену!' }]}
+            >
+              <InputNumber min={0} style={{ width: '100%' }} />
+            </Form.Item>
+          )}
           {!isStandardPaper && (
             <Form.Item
               name="availablePaper"
@@ -393,7 +428,7 @@ const Customers = () => {
           )}
         </Form>
       </Modal>
-  
+
       {/* Standard Roll Creation Modal */}
       <Modal
         title="Создать стандартный рулон"
@@ -437,7 +472,6 @@ const Customers = () => {
       </Modal>
     </div>
   );
-  
 };
 
 export default Customers;

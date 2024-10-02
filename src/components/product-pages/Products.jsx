@@ -29,7 +29,9 @@ import {
   SettingOutlined,
 } from '@ant-design/icons';
 
+
 const Products = () => {
+ 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [materialTypes, setMaterialTypes] = useState([]); // Fetch material types
@@ -43,7 +45,7 @@ const Products = () => {
   const [categoryForm] = Form.useForm();
   const [activeTabKey, setActiveTabKey] = useState('all'); // Default selected tab
   const [categoriesForEditing, setCategoriesForEditing] = useState([]);
-  const { organizationID } = useOutletContext();
+  const { organizationID, role } = useOutletContext();
 
   useEffect(() => {
     const fetchProductsCategoriesAndMaterialTypes = async () => {
@@ -226,17 +228,22 @@ const Products = () => {
         </div>
       ),
     },
-    {
-      title: 'Цена',
-      dataIndex: 'price',
-      key: 'price',
-      width: 100,
-      render: (price) => (
-        <div style={{ whiteSpace: 'nowrap' }}>
-          {price} сум
-        </div>
-      ),
-    },
+    // Conditionally include the Price column for 'owner' role
+    ...(role === 'owner'
+      ? [
+          {
+            title: 'Цена',
+            dataIndex: 'price',
+            key: 'price',
+            width: 100,
+            render: (price) => (
+              <div style={{ whiteSpace: 'nowrap' }}>
+                {price} сум
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       title: 'Сырье',
       dataIndex: 'material',
@@ -268,26 +275,30 @@ const Products = () => {
         </div>
       ),
     },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 100,
-      render: (text, record) => (
-        <Space>
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => editProduct(record)}
-          />
-          <Button
-            icon={<DeleteOutlined />}
-            onClick={() => deleteProduct(record.id)}
-            danger
-          />
-        </Space>
-      ),
-    },
+   // Conditionally include the Actions column for 'owner' role
+  ...(role === 'owner'
+    ? [
+        {
+          title: 'Действия',
+          key: 'actions',
+          width: 100,
+          render: (text, record) => (
+            <Space>
+              <Button
+                icon={<EditOutlined />}
+                onClick={() => editProduct(record)}
+              />
+              <Button
+                icon={<DeleteOutlined />}
+                onClick={() => deleteProduct(record.id)}
+                danger
+              />
+            </Space>
+          ),
+        },
+      ]
+    : []),
   ];
-
   const tabItems = [
     {
       key: 'all',
