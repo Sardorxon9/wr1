@@ -190,7 +190,7 @@ const Customers = () => {
           className="standard-roll-card"
           title={
             <>
-              <Text type="secondary">Стандартная бумага</Text> →{' '}
+              <Text type="secondary">Стандартный дизайн</Text> →{' '}
               <Text strong>{categoryName}</Text> →{' '}
               <Text strong>{productName}</Text>
             </>
@@ -309,10 +309,11 @@ const Customers = () => {
               justifyContent: 'space-between',
               alignItems: 'center',
               marginBottom: 20,
+              marginTop: 20,
             }}
           >
-            <Title level={4} style={{ margin: 0 }}>
-              Клиенты со стандартной бумагой
+            <Title level={4} style={{ margin: 0,  }}>
+              Клиенты со стандартной этикеткой
             </Title>
             <Button
               type="primary"
@@ -321,7 +322,7 @@ const Customers = () => {
                 setIsStandardPaper(true);
               }}
             >
-              Добавить клиента со стандартной бумагой
+              Добавить клиента со стандартной этикеткой
             </Button>
           </div>
           {renderCustomersTable(
@@ -335,8 +336,8 @@ const Customers = () => {
       <Modal
         title={
           isStandardPaper
-            ? 'Добавить клиента со стандартной бумагой'
-            : 'Добавить клиента с индивидуальной бумагой'
+            ? 'Добавить клиента со стандартной этикеткой'
+            : 'Добавить клиента с индивидуальной этикеткой'
         }
         visible={isCustomerModalVisible}
         onCancel={() => setIsCustomerModalVisible(false)}

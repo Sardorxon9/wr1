@@ -12,6 +12,7 @@ import {
   Skeleton,
   Switch,
   Typography,
+  Timeline,
 } from 'antd';
 import {
   doc,
@@ -336,67 +337,80 @@ const PaperCard = ({ card, roll, organizationID, refreshPaperRolls }) => {
         </Form>
       </Modal>
 
-      <h4>Записи о полученной бумаге:</h4>
-      {loading ? (
-        <Skeleton active />
-      ) : card.receivedRecords && card.receivedRecords.length > 0 ? (
-        card.receivedRecords.map((record, index) => {
-          let name;
-          if (record.type === 'customer') {
-            const customer = customers.find((c) => c.id === record.customerId);
-            name = customer ? customer.brand : 'Неизвестный клиент';
-          } else if (record.type === 'standardRoll') {
-            const standardRoll = standardRolls.find(
-              (sr) => sr.id === record.standardRollId
-            );
-            if (standardRoll) {
-              const category = categories.find(
-                (cat) => cat.id === standardRoll.product.categoryId
-              );
-              const product = products.find(
-                (prod) => prod.id === standardRoll.product.productId
-              );
-              const categoryName = category
-                ? category.name
-                : 'Категория не найдена';
-              const productName = product
-                ? product.title
-                : 'Продукт не найден';
-              name = `Стандарт дизайн: ${categoryName} → ${productName}`;
-            } else {
-              name = 'Стандартный рулон не найден';
-            }
-          } else {
-            name = 'Неизвестный тип';
-          }
-
-          const receiveDate =
-            record.receiveDate instanceof Date
-              ? record.receiveDate
-              : record.receiveDate.toDate
-              ? record.receiveDate.toDate()
-              : new Date(record.receiveDate.seconds * 1000);
-
-          return (
-            <p key={index} style={{ marginBottom: '10px' }}>
-              <span style={{ marginRight: '20px' }}>
-                <UserOutlined style={{ marginRight: '6px' }} />
-                {name}
-              </span>
-              <span style={{ marginRight: '20px' }}>
-                <FileDoneOutlined style={{ marginRight: '6px' }} />
-                {record.kg} кг
-              </span>
-              <span>
-                <CalendarOutlined style={{ marginRight: '6px' }} />
-                {receiveDate.toLocaleDateString('ru-RU')}
-              </span>
-            </p>
+      <h4 style={{paddingTop: 2, paddingBottom: 3}}>Записи о полученной бумаге:</h4>
+{loading ? (
+  <Skeleton active />
+) : card.receivedRecords && card.receivedRecords.length > 0 ? (
+  <Timeline>
+    {card.receivedRecords.map((record, index) => {
+      let name;
+      if (record.type === 'customer') {
+        const customer = customers.find((c) => c.id === record.customerId);
+        name = customer ? customer.brand : 'Неизвестный клиент';
+      } else if (record.type === 'standardRoll') {
+        const standardRoll = standardRolls.find(
+          (sr) => sr.id === record.standardRollId
+        );
+        if (standardRoll) {
+          const category = categories.find(
+            (cat) => cat.id === standardRoll.product.categoryId
           );
-        })
-      ) : (
-        <p>Записи не найдены.</p>
-      )}
+          const product = products.find(
+            (prod) => prod.id === standardRoll.product.productId
+          );
+          const categoryName = category
+            ? category.name
+            : 'Категория не найдена';
+          const productName = product
+            ? product.title
+            : 'Продукт не найден';
+          name = `Стандарт дизайн: ${categoryName} → ${productName}`;
+        } else {
+          name = 'Стандартный рулон не найден';
+        }
+      } else {
+        name = 'Неизвестный тип';
+      }
+
+      const receiveDate =
+        record.receiveDate instanceof Date
+          ? record.receiveDate
+          : record.receiveDate.toDate
+          ? record.receiveDate.toDate()
+          : new Date(record.receiveDate.seconds * 1000);
+
+      return (
+        <Timeline.Item key={index}>
+          <div
+            style={{
+              color: '#434343',
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            }}
+          >
+            <span style={{ marginRight: '20px' }}>
+              <UserOutlined style={{ marginRight: '6px' }} />
+              {name}
+            </span>
+            <span style={{ marginRight: '20px' }}>
+              <FileDoneOutlined style={{ marginRight: '6px' }} />
+              {record.kg} кг
+            </span>
+            <span>
+              <CalendarOutlined style={{ marginRight: '6px' }} />
+              {receiveDate.toLocaleDateString('ru-RU')}
+            </span>
+          </div>
+        </Timeline.Item>
+      );
+    })}
+  </Timeline>
+) : (
+  <p>Записи не найдены.</p>
+)}
+
+    
     </Card>
   );
 };

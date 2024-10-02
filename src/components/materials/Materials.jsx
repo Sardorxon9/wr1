@@ -173,7 +173,7 @@ const Materials = () => {
       dataIndex: 'dateAdded',
       key: 'dateAdded',
       render: (date) =>
-        date && date.seconds
+        date && date.seconds 
           ? new Date(date.seconds * 1000)
               .toLocaleDateString('ru-RU', {
                 day: '2-digit',
@@ -187,12 +187,15 @@ const Materials = () => {
       title: 'Итого (кг)',
       dataIndex: 'total',
       key: 'total',
+      render: (value) => value.toFixed(2),
     },
     {
       title: 'Использовано (кг)',
       dataIndex: 'used',
       key: 'used',
+      render: (value) => value.toFixed(2),
     },
+    
     {
       title: 'Доступно (кг)',
       dataIndex: 'available',

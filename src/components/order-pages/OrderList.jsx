@@ -321,7 +321,24 @@ const OrderList = () => {
             (option) => option.value === order.status
           );
           return (
-            <Card key={order.id} className="order-card">
+            <Card
+  key={order.id}
+  className="order-card"
+  actions={[
+    <Button
+      type="text"
+      icon={<DeleteOutlined />}
+      danger
+      onClick={() => {
+        setDeletingOrder(order);
+        setDeleteModalVisible(true);
+      }}
+      style={{ color: 'red' }}
+    >
+      Удалить
+    </Button>,
+  ]}
+>
               <Text
                 type="secondary"
                 style={{ display: 'block', marginBottom: 8 }}
@@ -335,9 +352,7 @@ const OrderList = () => {
               <Text strong style={{ fontSize: 18, marginBottom: 4 }}>
                 {order.client?.brand || 'Клиент не указан'}
               </Text>
-              <Text style={{ display: 'block', color: '#6B7280' }}>
-                {order.client?.companyName || 'Компания не указана'}
-              </Text>
+             
               <Text style={{ display: 'block', marginBottom: 8 }}>
                 {order.product
                   ? (() => {
@@ -432,18 +447,7 @@ const OrderList = () => {
                     : 'Изменить на : Готов к отгрузке'}
                 </Text>
               </div>
-              <Button
-                type="link"
-                icon={<DeleteOutlined />}
-                danger
-                onClick={() => {
-                  setDeletingOrder(order);
-                  setDeleteModalVisible(true);
-                }}
-                style={{ marginTop: 10 }}
-              >
-                Удалить
-              </Button>
+             
             </Card>
           );
         })}
