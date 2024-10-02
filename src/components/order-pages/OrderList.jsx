@@ -30,6 +30,7 @@ import {
   deleteDoc,
   query,
   where,
+  orderBy,
 } from 'firebase/firestore';
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
@@ -89,9 +90,10 @@ const OrderList = () => {
   const fetchOrdersAndProducts = async (orgID) => {
     setLoading(true);
     try {
-      const ordersSnapshot = await getDocs(
-        collection(db, `organizations/${orgID}/orders`)
-      );
+      // Fetch orders ordered by date descending
+      const ordersRef = collection(db, `organizations/${orgID}/orders`);
+      const ordersQuery = query(ordersRef, orderBy('date', 'desc'));
+      const ordersSnapshot = await getDocs(ordersQuery);
       const orders = ordersSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -152,7 +154,7 @@ const OrderList = () => {
           );
           const materialQuery = query(
             materialsRef,
-            where('type', '==', selectedProduct.title)
+            where('type', '==', selectedProduct.material)
           );
           const materialSnapshot = await getDocs(materialQuery);
 
@@ -224,7 +226,8 @@ const OrderList = () => {
                     (quantityInThousands * usageRate) / 1000; // Convert to kg
 
                   // Update standard roll usage
-                  const updatedUsed = (standardRoll.used || 0) - totalPaperRequired;
+                  const updatedUsed =
+                    (standardRoll.used || 0) - totalPaperRequired;
                   const updatedRemaining =
                     (standardRoll.remaining || 0) + totalPaperRequired;
 
@@ -337,9 +340,19 @@ const OrderList = () => {
               </Text>
               <Text style={{ display: 'block', marginBottom: 8 }}>
                 {order.product
-                  ? `${getCategoryName(order.product.categoryId)} > ${
-                      getProductName(order.product.productId)
-                    }`
+                  ? (() => {
+                      const productName = `${getCategoryName(
+                        order.product.categoryId
+                      )} > ${getProductName(order.product.productId)}`;
+                      const customer = customers.find(
+                        (cust) => cust.id === order.client.id
+                      );
+                      if (customer && customer.usesStandardPaper) {
+                        return `${productName} (Стандарт)`;
+                      } else {
+                        return productName;
+                      }
+                    })()
                   : 'Продукт не указан'}
               </Text>
               <Text
@@ -427,6 +440,7 @@ const OrderList = () => {
                   setDeletingOrder(order);
                   setDeleteModalVisible(true);
                 }}
+                style={{ marginTop: 10 }}
               >
                 Удалить
               </Button>
@@ -487,9 +501,17 @@ const OrderList = () => {
       dataIndex: 'product',
       render: (_, record) => {
         if (record.product) {
-          return `${getCategoryName(record.product.categoryId)} > ${
-            getProductName(record.product.productId)
-          }`;
+          const productName = `${getCategoryName(
+            record.product.categoryId
+          )} > ${getProductName(record.product.productId)}`;
+          const customer = customers.find(
+            (cust) => cust.id === record.client.id
+          );
+          if (customer && customer.usesStandardPaper) {
+            return `${productName} (Стандарт)`;
+          } else {
+            return productName;
+          }
         } else {
           return 'Продукт не указан';
         }
@@ -605,7 +627,11 @@ const OrderList = () => {
           </Radio.Button>
         </Radio.Group>
       </div>
-      <Tabs defaultActiveKey="all" onChange={(key) => setSelectedStatus(key)}>
+      <Tabs
+        defaultActiveKey="all"
+        onChange={(key) => setSelectedStatus(key)}
+        activeKey={selectedStatus}
+      >
         <TabPane tab="Все" key="all" />
         {statusOptions.map((option) => (
           <TabPane tab={option.label} key={option.value} />
