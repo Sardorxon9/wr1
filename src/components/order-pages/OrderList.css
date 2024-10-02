@@ -80,10 +80,4 @@
   letter-spacing: 0.02em;
 }
 
-.order-card .anticon-delete {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  cursor: pointer;
-  color: #ff4d4f;
-}
+
