@@ -45,9 +45,12 @@ const CreateOrder = () => {
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productWeight, setProductWeight] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+  const [showProductWeightInput, setShowProductWeightInput] = useState(false);
+  const productWeightOptions = [5, 4.5, 4, 3.5, 3];
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -96,10 +99,14 @@ const CreateOrder = () => {
       const customersSnapshot = await getDocs(
         collection(db, `organizations/${orgID}/customers`)
       );
-      const customersData = customersSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const customersData = customersSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          productWeight: data.productWeight || 5, // Assign default value if missing
+        };
+      });
       setCustomers(customersData);
 
       setLoadingCustomers(false);
@@ -144,44 +151,73 @@ const CreateOrder = () => {
     );
     setSelectedCustomer(selectedCustomer);
 
-    if (selectedCustomer) {
-      const categoryId = selectedCustomer.product?.categoryId;
-      const productId = selectedCustomer.product?.productId;
-
-      if (categoryId && productId) {
-        const category = categories.find((cat) => cat.id === categoryId);
-        const product = products.find((prod) => prod.id === productId);
-
-        form.setFieldsValue({
-          product: [categoryId, productId],
-          price: selectedCustomer.price,
-        });
-
-        setSelectedProduct(product);
-      } else {
-        setSelectedProduct(null);
-      }
-    } else {
-      setSelectedProduct(null);
-    }
-
     // Update selectedProduct based on current form values
     const currentProductIds = allValues.product || [];
+
+    if (selectedCustomer) {
+      const customerProduct = selectedCustomer.product;
+
+      // If customerProduct exists, set the form's product field to the customer's default product
+      if (
+        customerProduct &&
+        (!allValues.product || allValues.product.length === 0)
+      ) {
+        form.setFieldsValue({
+          product: [customerProduct.categoryId, customerProduct.productId],
+        });
+        currentProductIds[0] = customerProduct.categoryId;
+        currentProductIds[1] = customerProduct.productId;
+      }
+
+      // Set price if customer has price
+      if (selectedCustomer.price && !allValues.price) {
+        form.setFieldsValue({
+          price: selectedCustomer.price,
+        });
+      }
+    }
+
     if (currentProductIds.length === 2) {
       const currentProduct = products.find(
         (prod) => prod.id === currentProductIds[1]
       );
       setSelectedProduct(currentProduct);
+
+      if (selectedCustomer) {
+        const customerProduct = selectedCustomer.product;
+        const isDefaultProduct =
+          customerProduct.categoryId === currentProductIds[0] &&
+          customerProduct.productId === currentProductIds[1];
+
+        if (isDefaultProduct) {
+          setShowProductWeightInput(false);
+          setProductWeight(selectedCustomer.productWeight);
+          form.setFieldsValue({
+            productWeight: selectedCustomer.productWeight,
+          });
+        } else {
+          setShowProductWeightInput(true);
+          setProductWeight(allValues.productWeight);
+        }
+      } else {
+        setShowProductWeightInput(false);
+        setProductWeight(null);
+      }
     } else {
       setSelectedProduct(null);
+      setShowProductWeightInput(false);
+      setProductWeight(null);
     }
 
-    setOrderPreview(allValues);
+    setOrderPreview({
+      ...orderPreview,
+      ...allValues,
+    });
   };
 
   const formatQuantityInKg = (quantity, weightPerUnit) => {
     const totalWeight = (quantity * weightPerUnit) / 1000;
-    return `${totalWeight.toFixed(2)} kg`;
+    return `${totalWeight.toFixed(2)} кг`;
   };
 
   const onFinish = async (values) => {
@@ -197,6 +233,26 @@ const CreateOrder = () => {
           product.categoryId === values.product[0]
       );
       if (!selectedProduct) throw new Error('Продукт не найден.');
+
+      // Determine productWeight
+      let productWeightValue;
+      const customerProduct = selectedCustomer.product;
+      const isDefaultProduct =
+        customerProduct.categoryId === values.product[0] &&
+        customerProduct.productId === values.product[1];
+
+      if (isDefaultProduct) {
+        productWeightValue = selectedCustomer.productWeight;
+      } else {
+        productWeightValue = values.productWeight;
+        if (!productWeightValue) {
+          throw new Error('Пожалуйста, выберите вес продукта.');
+        }
+      }
+
+      // Calculate total material required in kg
+      const totalMaterialRequired =
+        (values.quantity * productWeightValue) / 1000; // Convert to kg
 
       // Update Material Usage
       const materialsRef = collection(
@@ -231,10 +287,7 @@ const CreateOrder = () => {
 
       materialsData.sort((a, b) => a.dateRegistered - b.dateRegistered);
 
-      // Calculate total material required in kg
-      const totalMaterialRequired =
-        (values.quantity * selectedProduct.materialUsage) / 1000; // Convert to kg
-
+      // Calculate total available material
       const totalAvailableMaterial = materialsData.reduce(
         (total, material) => total + (material.available || 0),
         0
@@ -242,7 +295,7 @@ const CreateOrder = () => {
 
       if (totalAvailableMaterial < totalMaterialRequired) {
         const maxPossibleQuantity = Math.floor(
-          (totalAvailableMaterial * 1000) / selectedProduct.materialUsage
+          (totalAvailableMaterial * 1000) / productWeightValue
         );
         throw new Error(
           `Недостаточно материала "${selectedProduct.material}". Максимально возможное количество: ${maxPossibleQuantity}.`
@@ -399,6 +452,7 @@ const CreateOrder = () => {
           categoryName: selectedCategory?.name || '',
           productTitle: selectedProduct?.title || '',
         },
+        productWeight: productWeightValue, // Include productWeight in order data
       };
 
       await setDoc(
@@ -417,6 +471,8 @@ const CreateOrder = () => {
       setOrderPreview({ client: '', product: [], quantity: 1, price: 0 });
       setSelectedProduct(null);
       setSelectedCustomer(null);
+      setProductWeight(null);
+      setShowProductWeightInput(false);
       await generateOrderNumber();
     } catch (error) {
       messageApi.open({
@@ -439,10 +495,16 @@ const CreateOrder = () => {
       })),
   }));
 
+  // Label style for form items
+  const labelStyle = { color: '#595959' };
+
   return (
     <div className="create-order-container">
       {contextHolder}
-      <div className="order-header">
+      <div
+        className="order-header"
+        style={{ marginBottom: '20px' }} // Added whitespace
+      >
         <div className="header-content-page">
           <Title level={3}>Добавить новый заказ</Title>
           <Text>Заказ номер: {orderNumber}</Text>
@@ -473,7 +535,7 @@ const CreateOrder = () => {
             <div className="form-row">
               <Form.Item
                 name="date"
-                label="Дата"
+                label={<span style={labelStyle}>Дата</span>}
                 rules={[
                   { required: true, message: 'Пожалуйста, выберите дату!' },
                 ]}
@@ -486,7 +548,7 @@ const CreateOrder = () => {
               </Form.Item>
               <Form.Item
                 name="client"
-                label="Клиент"
+                label={<span style={labelStyle}>Клиент</span>}
                 rules={[
                   { required: true, message: 'Пожалуйста, выберите клиента!' },
                 ]}
@@ -519,7 +581,7 @@ const CreateOrder = () => {
               </Form.Item>
               <Form.Item
                 name="product"
-                label="Продукт"
+                label={<span style={labelStyle}>Продукт</span>}
                 rules={[
                   { required: true, message: 'Пожалуйста, выберите продукт!' },
                 ]}
@@ -530,10 +592,34 @@ const CreateOrder = () => {
                 />
               </Form.Item>
             </div>
+            {showProductWeightInput && (
+              <Form.Item
+                name="productWeight"
+                label={<span style={labelStyle}>Вес продукта (гр)</span>}
+                rules={[
+                  {
+                    required: true,
+                    message: 'Пожалуйста, выберите вес продукта!',
+                  },
+                ]}
+              >
+                <Radio.Group>
+                  {productWeightOptions.map((weight) => (
+                    <Radio.Button
+                      key={weight}
+                      value={weight}
+                      style={{ marginRight: 10 }}
+                    >
+                      {weight} гр
+                    </Radio.Button>
+                  ))}
+                </Radio.Group>
+              </Form.Item>
+            )}
             <div className="form-row">
               <Form.Item
                 name="quantity"
-                label="Количество"
+                label={<span style={labelStyle}>Количество</span>}
                 rules={[
                   {
                     required: true,
@@ -552,7 +638,7 @@ const CreateOrder = () => {
               </Form.Item>
               <Form.Item
                 name="price"
-                label="Цена"
+                label={<span style={labelStyle}>Цена</span>}
                 rules={[
                   { required: true, message: 'Пожалуйста, введите цену!' },
                 ]}
@@ -568,7 +654,7 @@ const CreateOrder = () => {
               </Form.Item>
               <Form.Item
                 name="status"
-                label="Статус"
+                label={<span style={labelStyle}>Статус</span>}
                 rules={[
                   { required: true, message: 'Пожалуйста, выберите статус!' },
                 ]}
@@ -606,7 +692,7 @@ const CreateOrder = () => {
                     (
                     {formatQuantityInKg(
                       orderPreview.quantity || 0,
-                      selectedProduct?.materialUsage || 0
+                      productWeight || 0
                     )}{' '}
                     {selectedProduct?.material || ''})
                   </Text>

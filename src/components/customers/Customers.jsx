@@ -12,16 +12,21 @@ import {
   Tabs,
   Card,
   Progress,
+  Radio,
+  Space,
 } from 'antd';
 import {
   collection,
   addDoc,
   getDocs,
+  updateDoc,
+  doc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
 import './Customers.css'; // Import CSS for custom styles
-import { PlusCircleOutlined } from '@ant-design/icons';
+import { PlusCircleOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -41,6 +46,10 @@ const Customers = () => {
   const { organizationID, role } = useOutletContext(); // Include role
   const [activeTab, setActiveTab] = useState('1'); // Track the active tab
   const [isStandardPaper, setIsStandardPaper] = useState(false); // New state variable
+  const [isEditMode, setIsEditMode] = useState(false); // For editing customer
+  const [editingCustomer, setEditingCustomer] = useState(null); // Customer being edited
+
+  const productWeightOptions = [5, 4.5, 4, 3.5, 3];
 
   useEffect(() => {
     if (organizationID) {
@@ -71,11 +80,15 @@ const Customers = () => {
         id: doc.id,
         ...doc.data(),
       }));
-      const customersData = customersSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        paper: doc.data().paper || { used: 0, available: 0, remaining: 0 },
-      }));
+      const customersData = customersSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          paper: data.paper || { used: 0, available: 0, remaining: 0 },
+          productWeight: data.productWeight || 5, // Assign default value if missing
+        };
+      });
 
       setCategories(categoriesData);
       setProducts(productsData);
@@ -118,6 +131,7 @@ const Customers = () => {
         ...values,
         product: { categoryId, productId },
         usesStandardPaper: isStandardPaper,
+        productWeight: values.productWeight,
       };
 
       if (!isStandardPaper) {
@@ -134,18 +148,62 @@ const Customers = () => {
         delete customerData.price;
       }
 
-      await addDoc(
-        collection(db, `organizations/${organizationID}/customers`),
-        customerData
-      );
+      if (isEditMode && editingCustomer) {
+        // Update existing customer
+        const customerDocRef = doc(
+          db,
+          `organizations/${organizationID}/customers`,
+          editingCustomer.id
+        );
+        await updateDoc(customerDocRef, customerData);
+        message.success('Данные клиента обновлены!');
+      } else {
+        // Add new customer
+        await addDoc(
+          collection(db, `organizations/${organizationID}/customers`),
+          customerData
+        );
+        message.success('Клиент добавлен!');
+      }
+
       fetchProductsCategoriesAndCustomers();
-      message.success('Клиент добавлен!');
       setIsCustomerModalVisible(false);
       form.resetFields();
+      setIsEditMode(false);
+      setEditingCustomer(null);
     } catch (error) {
       message.error('Ошибка при сохранении клиента');
     } finally {
       setButtonLoading(false);
+    }
+  };
+
+  const handleEditCustomer = (customer) => {
+    setIsEditMode(true);
+    setEditingCustomer(customer);
+    setIsCustomerModalVisible(true);
+    setIsStandardPaper(customer.usesStandardPaper);
+    // Set form fields
+    form.setFieldsValue({
+      companyName: customer.companyName,
+      brand: customer.brand,
+      personInCharge: customer.personInCharge,
+      product: [customer.product.categoryId, customer.product.productId],
+      price: customer.price,
+      availablePaper: customer.paper ? customer.paper.available : 0,
+      productWeight: customer.productWeight,
+    });
+  };
+
+  const handleDeleteCustomer = async (customerId) => {
+    try {
+      await deleteDoc(
+        doc(db, `organizations/${organizationID}/customers`, customerId)
+      );
+      message.success('Клиент удален!');
+      fetchProductsCategoriesAndCustomers();
+    } catch (error) {
+      message.error('Ошибка при удалении клиента');
     }
   };
 
@@ -238,13 +296,20 @@ const Customers = () => {
           );
           const categoryName = category ? category.name : 'Категория не найдена';
           const productName = productData ? productData.title : 'Продукт не найден';
-    
+
           return (
             <Text style={{ color: '#8c8c8c', fontWeight: 'lighter' }}>
               {`${categoryName} → ${productName}`}
             </Text>
           );
         },
+      },
+      // Add productWeight column
+      {
+        title: 'Вес продукта (гр)',
+        dataIndex: 'productWeight',
+        key: 'productWeight',
+        render: (value) => `${value} гр`,
       },
       // Conditionally include the Price column
       ...(role !== 'member'
@@ -267,23 +332,6 @@ const Customers = () => {
         key: 'availablePaper',
         render: (value) => (value !== undefined ? value.toFixed(1) : '-'),
       });
-    } else {
-      columns.push({
-        title: 'Продукт',
-        dataIndex: 'product',
-        key: 'product',
-        render: (product) => {
-          const category = categories.find(
-            (cat) => cat.id === product.categoryId
-          );
-          const productData = products.find(
-            (prod) => prod.id === product.productId
-          );
-          const categoryName = category ? category.name : 'Категория не найдена';
-          const productName = productData ? productData.title : 'Продукт не найден';
-          return `${categoryName} → ${productName}`;
-        },
-      });
     }
 
     columns.push({
@@ -293,12 +341,31 @@ const Customers = () => {
       render: (value) => (value !== undefined ? value.toFixed(1) : '-'),
     });
 
+    // Add Actions column
+    columns.push({
+      title: 'Действия',
+      key: 'actions',
+      render: (text, record) => (
+        <Space>
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => handleEditCustomer(record)}
+          />
+          <Button
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteCustomer(record.id)}
+            danger
+          />
+        </Space>
+      ),
+    });
+
     return (
       <Table
         dataSource={customersList}
         columns={columns}
         rowKey="id"
-        pagination={{ pageSize: 5 }}
+        pagination={{ pageSize: 15 }}
       />
     );
   };
@@ -313,6 +380,9 @@ const Customers = () => {
             onClick={() => {
               setIsCustomerModalVisible(true);
               setIsStandardPaper(false);
+              setIsEditMode(false);
+              setEditingCustomer(null);
+              form.resetFields();
             }}
             style={{ marginBottom: 20 }}
           >
@@ -352,6 +422,9 @@ const Customers = () => {
               onClick={() => {
                 setIsCustomerModalVisible(true);
                 setIsStandardPaper(true);
+                setIsEditMode(false);
+                setEditingCustomer(null);
+                form.resetFields();
               }}
             >
               Добавить клиента со стандартной этикеткой
@@ -367,12 +440,19 @@ const Customers = () => {
       {/* Customer Modal */}
       <Modal
         title={
-          isStandardPaper
+          isEditMode
+            ? 'Редактировать клиента'
+            : isStandardPaper
             ? 'Добавить клиента со стандартной этикеткой'
             : 'Добавить клиента с индивидуальной этикеткой'
         }
         visible={isCustomerModalVisible}
-        onCancel={() => setIsCustomerModalVisible(false)}
+        onCancel={() => {
+          setIsCustomerModalVisible(false);
+          setIsEditMode(false);
+          setEditingCustomer(null);
+          form.resetFields();
+        }}
         onOk={form.submit}
         confirmLoading={buttonLoading}
       >
@@ -404,6 +484,19 @@ const Customers = () => {
             rules={[{ required: true, message: 'Выберите продукт!' }]}
           >
             <Cascader options={cascaderOptions} />
+          </Form.Item>
+          <Form.Item
+            name="productWeight"
+            label="Вес продукта (гр)"
+            rules={[{ required: true, message: 'Пожалуйста, выберите вес продукта!' }]}
+          >
+            <Radio.Group>
+              {productWeightOptions.map((weight) => (
+                <Radio.Button key={weight} value={weight} style={{ marginRight: 10 }}>
+                  {weight} гр
+                </Radio.Button>
+              ))}
+            </Radio.Group>
           </Form.Item>
           {/* Conditionally render the Price field */}
           {role !== 'member' && (
