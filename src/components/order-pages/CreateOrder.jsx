@@ -516,216 +516,225 @@ const CreateOrder = () => {
         </div>
       ) : (
         <Form
-          layout="vertical"
-          form={form}
-          onValuesChange={onValuesChange}
-          onFinish={onFinish}
-          initialValues={{
-            quantity: 1,
-            price: 0,
-            status: 'in-progress',
-            date: dayjs(),
-          }}
+        layout="vertical"
+        form={form}
+        onValuesChange={onValuesChange}
+        onFinish={onFinish}
+        initialValues={{
+          quantity: 1,
+          price: 0,
+          status: 'in-progress',
+          date: dayjs(),
+        }}
+      >
+        <Space
+          size="large"
+          direction="vertical"
+          style={{ width: '100%' }}
         >
-          <Space
-            size="large"
-            direction="vertical"
-            style={{ width: '100%' }}
-          >
-            <div className="form-row">
-              <Form.Item
-                name="date"
-                label={<span style={labelStyle}>Дата</span>}
-                rules={[
-                  { required: true, message: 'Пожалуйста, выберите дату!' },
-                ]}
-              >
-                <DatePicker
-                  defaultPickerValue={dayjs()}
-                  defaultValue={dayjs()}
-                  placeholder="Выберите дату"
-                />
-              </Form.Item>
-              <Form.Item
-                name="client"
-                label={<span style={labelStyle}>Клиент</span>}
-                rules={[
-                  { required: true, message: 'Пожалуйста, выберите клиента!' },
-                ]}
-              >
-                <Select
-                  placeholder="Выберите клиента"
-                  loading={loadingCustomers}
-                >
-                  {customers.length > 0 ? (
-                    customers.map((customer) => (
-                      <Select.Option
-                        key={customer.id}
-                        value={customer.brand}
-                      >
-                        {customer.brand}
-                        {customer.paper && !customer.usesStandardPaper && (
-                          <Text type="secondary">
-                            {'  '} | Доступно бумаги :{' '}
-                            {customer.paper.available || 0} кг
-                          </Text>
-                        )}
-                      </Select.Option>
-                    ))
-                  ) : (
-                    <Select.Option disabled>
-                      Данные загружаются...
-                    </Select.Option>
-                  )}
-                </Select>
-              </Form.Item>
-              <Form.Item
-                name="product"
-                label={<span style={labelStyle}>Продукт</span>}
-                rules={[
-                  { required: true, message: 'Пожалуйста, выберите продукт!' },
-                ]}
-              >
-                <Cascader
-                  options={productOptions}
-                  placeholder="Выберите продукт"
-                />
-              </Form.Item>
-            </div>
-            {showProductWeightInput && (
-              <Form.Item
-                name="productWeight"
-                label={<span style={labelStyle}>Вес продукта (гр)</span>}
-                rules={[
-                  {
-                    required: true,
-                    message: 'Пожалуйста, выберите вес продукта!',
-                  },
-                ]}
-              >
-                <Radio.Group>
-                  {productWeightOptions.map((weight) => (
-                    <Radio.Button
-                      key={weight}
-                      value={weight}
-                      style={{ marginRight: 10 }}
-                    >
-                      {weight} гр
-                    </Radio.Button>
-                  ))}
-                </Radio.Group>
-              </Form.Item>
-            )}
-            <div className="form-row">
-              <Form.Item
-                name="quantity"
-                label={<span style={labelStyle}>Количество</span>}
-                rules={[
-                  {
-                    required: true,
-                    message: 'Пожалуйста, введите количество!',
-                  },
-                ]}
-              >
-                <InputNumber
-                  min={1}
-                  style={{ width: '100%' }}
-                  formatter={(value) =>
-                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-                  }
-                  parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
-                />
-              </Form.Item>
-              <Form.Item
-                name="price"
-                label={<span style={labelStyle}>Цена</span>}
-                rules={[
-                  { required: true, message: 'Пожалуйста, введите цену!' },
-                ]}
-              >
-                <InputNumber
-                  min={0}
-                  style={{ width: '100%' }}
-                  formatter={(value) =>
-                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-                  }
-                  parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
-                />
-              </Form.Item>
-              <Form.Item
-                name="status"
-                label={<span style={labelStyle}>Статус</span>}
-                rules={[
-                  { required: true, message: 'Пожалуйста, выберите статус!' },
-                ]}
-              >
-                <Radio.Group>
-                  <Radio value="in-progress">В процессе</Radio>
-                  <Radio value="ready">Готов к отправке</Radio>
-                  <Radio value="delivered">Доставлено</Radio>
-                </Radio.Group>
-              </Form.Item>
-            </div>
-            <div className="order-preview">
-              <div className="order-summary">
-                <div>
-                  <Text strong>Клиент:</Text> {orderPreview.client}
-                </div>
-                <div>
-                  <Text strong>Продукт:</Text>{' '}
-                  {orderPreview.product?.length > 0
-                    ? (() => {
-                        const category = categories.find(
-                          (cat) => cat.id === orderPreview.product[0]
-                        );
-                        const product = products.find(
-                          (prod) => prod.id === orderPreview.product[1]
-                        );
-                        return `${category?.name || ''} → ${product?.title || ''}`;
-                      })()
-                    : ''}
-                </div>
-                <div>
-                  <Text strong>Количество:</Text>{' '}
-                  {(orderPreview.quantity || 0).toLocaleString()} шт
-                  <Text type="secondary" style={{ marginLeft: 8 }}>
-                    (
-                    {formatQuantityInKg(
-                      orderPreview.quantity || 0,
-                      productWeight || 0
-                    )}{' '}
-                    {selectedProduct?.material || ''})
-                  </Text>
-                </div>
-                <div>
-                  <Text strong>Цена:</Text>{' '}
-                  {(orderPreview.price || 0).toLocaleString()} сум
-                </div>
-                <div className="order-total">
-                  <Text strong>Итого:</Text>{' '}
-                  {(
-                    (orderPreview.quantity || 0) *
-                    (orderPreview.price || 0)
-                  ).toLocaleString()}{' '}
-                  сум
-                </div>
+          <div className="form-row">
+            <Form.Item
+              name="date"
+              label={<span style={labelStyle}>Дата</span>}
+              rules={[
+                { required: true, message: 'Пожалуйста, выберите дату!' },
+              ]}
+            >
+              <DatePicker
+                defaultPickerValue={dayjs()}
+                defaultValue={dayjs()}
+                placeholder="Выберите дату"
+              />
+            </Form.Item>
+            <Form.Item
+              name="client"
+              label={<span style={labelStyle}>Клиент</span>}
+              rules={[
+                { required: true, message: 'Пожалуйста, выберите клиента!' },
+              ]}
+            >
+              <Select
+                placeholder="Выберите клиента"
+                loading={loadingCustomers}
+                showSearch
+                optionFilterProp="label"
+                filterOption={(input, option) =>
+                  option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                }
+                options={
+                  customers.length > 0
+                    ? [
+                        {
+                          label: 'С логотипом',
+                          options: customers
+                            .filter((c) => !c.usesStandardPaper)
+                            .map((customer) => ({
+                              value: customer.brand,
+                              label: customer.brand,
+                            })),
+                        },
+                        {
+                          label: 'Стандарт дизайн',
+                          options: customers
+                            .filter((c) => c.usesStandardPaper)
+                            .map((customer) => ({
+                              value: customer.brand,
+                              label: customer.brand,
+                            })),
+                        },
+                      ]
+                    : []
+                }
+              />
+            </Form.Item>
+            <Form.Item
+              name="product"
+              label={<span style={labelStyle}>Продукт</span>}
+              rules={[
+                { required: true, message: 'Пожалуйста, выберите продукт!' },
+              ]}
+            >
+              <Cascader
+                options={productOptions}
+                placeholder="Выберите продукт"
+              />
+            </Form.Item>
+          </div>
+          {showProductWeightInput && (
+            <Form.Item
+              name="productWeight"
+              label={<span style={labelStyle}>Вес продукта (гр)</span>}
+              rules={[
+                {
+                  required: true,
+                  message: 'Пожалуйста, выберите вес продукта!',
+                },
+              ]}
+            >
+              <Radio.Group>
+                {productWeightOptions.map((weight) => (
+                  <Radio.Button
+                    key={weight}
+                    value={weight}
+                    style={{ marginRight: 10 }}
+                  >
+                    {weight} гр
+                  </Radio.Button>
+                ))}
+              </Radio.Group>
+            </Form.Item>
+          )}
+          <div className="form-row">
+            <Form.Item
+              name="quantity"
+              label={<span style={labelStyle}>Количество</span>}
+              rules={[
+                {
+                  required: true,
+                  message: 'Пожалуйста, введите количество!',
+                },
+              ]}
+            >
+              <InputNumber
+                min={1}
+                style={{ width: '100%' }}
+                formatter={(value) =>
+                  `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+                }
+                parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+              />
+            </Form.Item>
+            <Form.Item
+              name="price"
+              label={<span style={labelStyle}>Цена</span>}
+              rules={[
+                { required: true, message: 'Пожалуйста, введите цену!' },
+              ]}
+            >
+              <InputNumber
+                min={0}
+                style={{ width: '100%' }}
+                formatter={(value) =>
+                  `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+                }
+                parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+              />
+            </Form.Item>
+            <Form.Item
+              name="status"
+              label={<span style={labelStyle}>Статус</span>}
+              rules={[
+                { required: true, message: 'Пожалуйста, выберите статус!' },
+              ]}
+            >
+              <Radio.Group>
+                <Radio value="in-progress">В процессе</Radio>
+                <Radio value="ready">Готов к отправке</Radio>
+                <Radio value="delivered">Доставлено</Radio>
+              </Radio.Group>
+            </Form.Item>
+          </div>
+          <div className="order-preview">
+            <div className="order-summary">
+              <div>
+                <Text strong>Клиент:</Text> {orderPreview.client}
+              </div>
+              <div>
+                <Text strong>Продукт:</Text>{' '}
+                {orderPreview.product?.length > 0
+                  ? (() => {
+                      const category = categories.find(
+                        (cat) => cat.id === orderPreview.product[0]
+                      );
+                      const product = products.find(
+                        (prod) => prod.id === orderPreview.product[1]
+                      );
+                      return `${category?.name || ''} → ${product?.title || ''}`;
+                    })()
+                  : ''}
+              </div>
+              <div>
+                <Text strong>Количество:</Text>{' '}
+                {(orderPreview.quantity || 0).toLocaleString()} шт
+                <Text type="secondary" style={{ marginLeft: 8 }}>
+                  (
+                  {formatQuantityInKg(
+                    orderPreview.quantity || 0,
+                    productWeight || 0
+                  )}{' '}
+                  {selectedProduct?.material || ''})
+                </Text>
+              </div>
+              <div>
+                <Text strong>Цена:</Text>{' '}
+                {(orderPreview.price || 0).toLocaleString()} сум
+              </div>
+              <div className="order-total">
+                <Text strong>Итого:</Text>{' '}
+                {(
+                  (orderPreview.quantity || 0) *
+                  (orderPreview.price || 0)
+                ).toLocaleString()}{' '}
+                сум
               </div>
             </div>
-            <div
-              className="form-actions"
-              style={{
-                display: 'flex',
-                flexDirection: 'column-reverse',
-                gap: '10px',
-              }}
-            >
-              <Button type="default">Отмена</Button>
-              <Button type="primary" htmlType="submit">
-                Добавить новый заказ
-              </Button>
-            </div>
-          </Space>
-        </Form>
+          </div>
+          <div
+            className="form-actions"
+            style={{
+              display: 'flex',
+              flexDirection: 'column-reverse',
+              gap: '10px',
+            }}
+          >
+            <Button type="default">Отмена</Button>
+            <Button type="primary" htmlType="submit">
+              Добавить новый заказ
+            </Button>
+          </div>
+        </Space>
+      </Form>
+      
       )}
     </div>
   );
