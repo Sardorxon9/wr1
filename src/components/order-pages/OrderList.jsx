@@ -12,6 +12,7 @@ import {
   Spin,
   Button,
   Modal,
+  InputNumber,
 } from 'antd';
 import {
   UnorderedListOutlined,
@@ -20,6 +21,7 @@ import {
   CarOutlined,
   LoadingOutlined,
   DeleteOutlined,
+  CheckOutlined,
 } from '@ant-design/icons';
 import {
   collection,
@@ -49,20 +51,28 @@ const statusOptions = [
     icon: <CarOutlined />,
   },
   {
-    label: 'Доставлено',
-    value: 'delivered',
-    color: 'green',
-    backgroundColor: '#E3F6EB',
-    textColor: '#3D8C5C',
-    icon: <CarOutlined />,
-  },
-  {
     label: 'Готов к отправке',
     value: 'ready',
     color: 'blue',
     backgroundColor: '#FDEADC',
     textColor: '#D8844C',
     icon: <CodeSandboxOutlined />,
+  },
+  {
+    label: 'Частично доставлено',
+    value: 'partially-delivered',
+    color: 'teal',
+    backgroundColor: '#E0F2F1',
+    textColor: '#00796B',
+    icon: <CarOutlined />,
+  },
+  {
+    label: 'Доставлено',
+    value: 'delivered',
+    color: 'green',
+    backgroundColor: '#E3F6EB',
+    textColor: '#3D8C5C',
+    icon: <CarOutlined />,
   },
 ];
 
@@ -78,6 +88,8 @@ const OrderList = () => {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deletingOrder, setDeletingOrder] = useState(null);
   const [deleteOption, setDeleteOption] = useState(null);
+  const [partialDeliveryOrderId, setPartialDeliveryOrderId] = useState(null);
+  const [partialDeliveryQuantity, setPartialDeliveryQuantity] = useState(null);
 
   useEffect(() => {
     if (organizationID) {
@@ -253,7 +265,8 @@ const OrderList = () => {
 
                 // Calculate paper used in the order
                 const totalPaperRequired =
-                  (orderData.quantity * selectedProduct.requiredPaper) / 1000000; // grams to kg
+                  (orderData.quantity * selectedProduct.requiredPaper) /
+                  1000000; // grams to kg
 
                 // Update paper stock
                 const updatedPaperUsed =
@@ -292,7 +305,47 @@ const OrderList = () => {
 
       const orderRef = doc(db, `organizations/${organizationID}/orders`, id);
       await updateDoc(orderRef, { status: newStatus });
+
+      if (newStatus !== 'partially-delivered') {
+        setPartialDeliveryOrderId(null);
+        setPartialDeliveryQuantity(null);
+      }
+
       message.success('Статус успешно обновлен!');
+    } catch (error) {
+      message.error('Ошибка обновления статуса: ' + error.message);
+    }
+  };
+
+  const handlePartialDelivery = async (id, deliveredQuantity) => {
+    try {
+      const order = dataSource.find((item) => item.id === id);
+      const totalQuantity = order.quantity;
+
+      if (deliveredQuantity >= totalQuantity) {
+        await handleStatusChange(id, 'delivered');
+        await updateDoc(doc(db, `organizations/${organizationID}/orders`, id), {
+          deliveredQuantity: null,
+        });
+        message.success('Заказ полностью доставлен!');
+      } else {
+        const newData = dataSource.map((item) =>
+          item.id === id
+            ? { ...item, status: 'partially-delivered', deliveredQuantity }
+            : item
+        );
+        setDataSource(newData);
+
+        const orderRef = doc(db, `organizations/${organizationID}/orders`, id);
+        await updateDoc(orderRef, {
+          status: 'partially-delivered',
+          deliveredQuantity,
+        });
+        message.success('Статус успешно обновлен!');
+      }
+
+      setPartialDeliveryOrderId(null);
+      setPartialDeliveryQuantity(null);
     } catch (error) {
       message.error('Ошибка обновления статуса: ' + error.message);
     }
@@ -306,6 +359,21 @@ const OrderList = () => {
   const getProductName = (productId) => {
     const product = products.find((prod) => prod.id === productId);
     return product ? product.title : 'Unknown Product';
+  };
+
+  const formatNumberWithSpaces = (number) => {
+    return number.toLocaleString('ru-RU');
+  };
+
+  const parseInputNumber = (value) => {
+    if (typeof value === 'number') return value;
+    const parsedValue = parseFloat(
+      value
+        .toString()
+        .replace(/\s/g, '')
+        .replace(',', '.')
+    );
+    return isNaN(parsedValue) ? null : parsedValue;
   };
 
   const renderCardView = () => {
@@ -322,23 +390,23 @@ const OrderList = () => {
           );
           return (
             <Card
-  key={order.id}
-  className="order-card"
-  actions={[
-    <Button
-      type="text"
-      icon={<DeleteOutlined />}
-      danger
-      onClick={() => {
-        setDeletingOrder(order);
-        setDeleteModalVisible(true);
-      }}
-      style={{ color: 'red' }}
-    >
-      Удалить
-    </Button>,
-  ]}
->
+              key={order.id}
+              className="order-card"
+              actions={[
+                <Button
+                  type="text"
+                  icon={<DeleteOutlined />}
+                  danger
+                  onClick={() => {
+                    setDeletingOrder(order);
+                    setDeleteModalVisible(true);
+                  }}
+                  style={{ color: 'red' }}
+                >
+                  Удалить
+                </Button>,
+              ]}
+            >
               <Text
                 type="secondary"
                 style={{ display: 'block', marginBottom: 8 }}
@@ -352,7 +420,7 @@ const OrderList = () => {
               <Text strong style={{ fontSize: 18, marginBottom: 4 }}>
                 {order.client?.brand || 'Клиент не указан'}
               </Text>
-             
+
               <Text style={{ display: 'block', marginBottom: 8 }}>
                 {order.product
                   ? (() => {
@@ -378,14 +446,16 @@ const OrderList = () => {
                 }}
               >
                 {order.quantity
-                  ? order.quantity.toLocaleString('ru-RU')
+                  ? formatNumberWithSpaces(order.quantity)
                   : '0'}{' '}
                 шт
               </Text>
               {role === 'owner' && order.price !== undefined && (
                 <div style={{ textAlign: 'left', marginBottom: 16 }}>
                   <Text strong style={{ fontSize: 18, color: '#000' }}>
-                    {(order.quantity * order.price).toLocaleString('ru-RU')}
+                    {formatNumberWithSpaces(
+                      order.quantity * order.price
+                    )}
                   </Text>
                   <Text
                     style={{
@@ -394,7 +464,7 @@ const OrderList = () => {
                       fontSize: 14,
                     }}
                   >
-                    {order.price.toLocaleString('ru-RU')} сум/шт
+                    {formatNumberWithSpaces(order.price)} сум/шт
                   </Text>
                 </div>
               )}
@@ -403,7 +473,14 @@ const OrderList = () => {
                 text={
                   <>
                     {statusOption.icon}
-                    <span style={{ marginLeft: 4 }}>{statusOption.label}</span>
+                    <span style={{ marginLeft: 4 }}>
+                      {statusOption.label}
+                      {order.status === 'partially-delivered' &&
+                        order.deliveredQuantity != null &&
+                        `: ${formatNumberWithSpaces(
+                          order.deliveredQuantity
+                        )} / ${formatNumberWithSpaces(order.quantity)}`}
+                    </span>
                   </>
                 }
                 style={{
@@ -415,39 +492,6 @@ const OrderList = () => {
                   borderRadius: '5px',
                 }}
               />
-              <div className="order-card-switch">
-                <Switch
-                  checked={
-                    role === 'owner'
-                      ? order.status === 'delivered'
-                      : order.status === 'ready'
-                  }
-                  onChange={(checked) => {
-                    if (role === 'owner') {
-                      handleStatusChange(
-                        order.id,
-                        checked ? 'delivered' : 'ready'
-                      );
-                    } else {
-                      handleStatusChange(
-                        order.id,
-                        checked ? 'ready' : 'in-progress'
-                      );
-                    }
-                  }}
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={{ color: '#68768C' }}>
-                  {role === 'owner'
-                    ? order.status === 'delivered'
-                      ? 'Доставлено'
-                      : 'Изменить на : Доставлено'
-                    : order.status === 'ready'
-                    ? 'Готов к отгрузке'
-                    : 'Изменить на : Готов к отгрузке'}
-                </Text>
-              </div>
-             
             </Card>
           );
         })}
@@ -525,7 +569,7 @@ const OrderList = () => {
       title: 'КОЛИЧЕСТВО',
       dataIndex: 'quantity',
       render: (quantity) =>
-        quantity ? quantity.toLocaleString('ru-RU') : 'Кол-во не указано',
+        quantity ? formatNumberWithSpaces(quantity) : 'Кол-во не указано',
     },
     ...(role === 'owner'
       ? [
@@ -539,7 +583,9 @@ const OrderList = () => {
                     <Text
                       style={{ fontSize: 16, fontWeight: 600, color: '#000' }}
                     >
-                      {(record.quantity * record.price).toLocaleString('ru-RU')}
+                      {formatNumberWithSpaces(
+                        record.quantity * record.price
+                      )}
                     </Text>
                     <Text
                       style={{
@@ -549,7 +595,7 @@ const OrderList = () => {
                         fontSize: 14,
                       }}
                     >
-                      {record.price.toLocaleString('ru-RU')} сум/шт
+                      {formatNumberWithSpaces(record.price)} сум/шт
                     </Text>
                   </div>
                 );
@@ -568,24 +614,73 @@ const OrderList = () => {
           (option) => option.value === record.status
         );
         if (statusOption) {
+          if (partialDeliveryOrderId === record.id) {
+            return (
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <InputNumber
+                  min={1}
+                  max={record.quantity}
+                  value={partialDeliveryQuantity}
+                  onChange={(value) =>
+                    setPartialDeliveryQuantity(parseInputNumber(value))
+                  }
+                  placeholder="Кол-во доставлено"
+                  formatter={(value) =>
+                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+                  }
+                  parser={(value) => value.replace(/\s/g, '')}
+                  style={{ marginRight: 8 }}
+                />
+                <Button
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  onClick={() =>
+                    handlePartialDelivery(record.id, partialDeliveryQuantity)
+                  }
+                  disabled={
+                    !partialDeliveryQuantity ||
+                    isNaN(partialDeliveryQuantity) ||
+                    partialDeliveryQuantity <= 0 ||
+                    partialDeliveryQuantity > record.quantity
+                  }
+                />
+              </div>
+            );
+          }
           return (
-            <Select
-              placeholder="Выберите статус"
-              defaultValue={record.status}
-              style={{ width: '100%' }}
-              onChange={(value) => handleStatusChange(record.id, value)}
-            >
-              {statusOptions.map((option) => (
-                <Select.Option key={option.value} value={option.value}>
-                  <Badge
-                    color={option.color}
-                    text={
-                      <span style={{ marginLeft: '8px' }}>{option.label}</span>
-                    }
-                  />
-                </Select.Option>
-              ))}
-            </Select>
+            <div>
+              <Select
+                placeholder="Выберите статус"
+                value={record.status}
+                style={{ width: '100%' }}
+                onChange={(value) => {
+                  if (value === 'partially-delivered') {
+                    setPartialDeliveryOrderId(record.id);
+                    setPartialDeliveryQuantity(null);
+                  } else {
+                    handleStatusChange(record.id, value);
+                  }
+                }}
+              >
+                {statusOptions.map((option) => (
+                  <Select.Option key={option.value} value={option.value}>
+                    <Badge
+                      color={option.color}
+                      text={
+                        <span style={{ marginLeft: '8px' }}>
+                          {option.label}
+                          {option.value === 'partially-delivered' &&
+                            record.deliveredQuantity != null &&
+                            `: ${formatNumberWithSpaces(
+                              record.deliveredQuantity
+                            )} / ${formatNumberWithSpaces(record.quantity)}`}
+                        </span>
+                      }
+                    />
+                  </Select.Option>
+                ))}
+              </Select>
+            </div>
           );
         }
         return 'Статус не указан';
