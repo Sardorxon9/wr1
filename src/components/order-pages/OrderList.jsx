@@ -305,12 +305,6 @@ const OrderList = () => {
 
       const orderRef = doc(db, `organizations/${organizationID}/orders`, id);
       await updateDoc(orderRef, { status: newStatus });
-
-      if (newStatus !== 'partially-delivered') {
-        setPartialDeliveryOrderId(null);
-        setPartialDeliveryQuantity(null);
-      }
-
       message.success('Статус успешно обновлен!');
     } catch (error) {
       message.error('Ошибка обновления статуса: ' + error.message);
@@ -319,31 +313,19 @@ const OrderList = () => {
 
   const handlePartialDelivery = async (id, deliveredQuantity) => {
     try {
-      const order = dataSource.find((item) => item.id === id);
-      const totalQuantity = order.quantity;
+      const newData = dataSource.map((item) =>
+        item.id === id
+          ? { ...item, status: 'partially-delivered', deliveredQuantity }
+          : item
+      );
+      setDataSource(newData);
 
-      if (deliveredQuantity >= totalQuantity) {
-        await handleStatusChange(id, 'delivered');
-        await updateDoc(doc(db, `organizations/${organizationID}/orders`, id), {
-          deliveredQuantity: null,
-        });
-        message.success('Заказ полностью доставлен!');
-      } else {
-        const newData = dataSource.map((item) =>
-          item.id === id
-            ? { ...item, status: 'partially-delivered', deliveredQuantity }
-            : item
-        );
-        setDataSource(newData);
-
-        const orderRef = doc(db, `organizations/${organizationID}/orders`, id);
-        await updateDoc(orderRef, {
-          status: 'partially-delivered',
-          deliveredQuantity,
-        });
-        message.success('Статус успешно обновлен!');
-      }
-
+      const orderRef = doc(db, `organizations/${organizationID}/orders`, id);
+      await updateDoc(orderRef, {
+        status: 'partially-delivered',
+        deliveredQuantity,
+      });
+      message.success('Статус успешно обновлен!');
       setPartialDeliveryOrderId(null);
       setPartialDeliveryQuantity(null);
     } catch (error) {
@@ -359,21 +341,6 @@ const OrderList = () => {
   const getProductName = (productId) => {
     const product = products.find((prod) => prod.id === productId);
     return product ? product.title : 'Unknown Product';
-  };
-
-  const formatNumberWithSpaces = (number) => {
-    return number.toLocaleString('ru-RU');
-  };
-
-  const parseInputNumber = (value) => {
-    if (typeof value === 'number') return value;
-    const parsedValue = parseFloat(
-      value
-        .toString()
-        .replace(/\s/g, '')
-        .replace(',', '.')
-    );
-    return isNaN(parsedValue) ? null : parsedValue;
   };
 
   const renderCardView = () => {
@@ -446,16 +413,14 @@ const OrderList = () => {
                 }}
               >
                 {order.quantity
-                  ? formatNumberWithSpaces(order.quantity)
+                  ? order.quantity.toLocaleString('ru-RU')
                   : '0'}{' '}
                 шт
               </Text>
               {role === 'owner' && order.price !== undefined && (
                 <div style={{ textAlign: 'left', marginBottom: 16 }}>
                   <Text strong style={{ fontSize: 18, color: '#000' }}>
-                    {formatNumberWithSpaces(
-                      order.quantity * order.price
-                    )}
+                    {(order.quantity * order.price).toLocaleString('ru-RU')}
                   </Text>
                   <Text
                     style={{
@@ -464,7 +429,7 @@ const OrderList = () => {
                       fontSize: 14,
                     }}
                   >
-                    {formatNumberWithSpaces(order.price)} сум/шт
+                    {order.price.toLocaleString('ru-RU')} сум/шт
                   </Text>
                 </div>
               )}
@@ -477,9 +442,7 @@ const OrderList = () => {
                       {statusOption.label}
                       {order.status === 'partially-delivered' &&
                         order.deliveredQuantity != null &&
-                        `: ${formatNumberWithSpaces(
-                          order.deliveredQuantity
-                        )} / ${formatNumberWithSpaces(order.quantity)}`}
+                        `: ${order.deliveredQuantity} / ${order.quantity}`}
                     </span>
                   </>
                 }
@@ -492,6 +455,7 @@ const OrderList = () => {
                   borderRadius: '5px',
                 }}
               />
+              {/* Add switch or other controls if needed */}
             </Card>
           );
         })}
@@ -569,7 +533,7 @@ const OrderList = () => {
       title: 'КОЛИЧЕСТВО',
       dataIndex: 'quantity',
       render: (quantity) =>
-        quantity ? formatNumberWithSpaces(quantity) : 'Кол-во не указано',
+        quantity ? quantity.toLocaleString('ru-RU') : 'Кол-во не указано',
     },
     ...(role === 'owner'
       ? [
@@ -583,9 +547,7 @@ const OrderList = () => {
                     <Text
                       style={{ fontSize: 16, fontWeight: 600, color: '#000' }}
                     >
-                      {formatNumberWithSpaces(
-                        record.quantity * record.price
-                      )}
+                      {(record.quantity * record.price).toLocaleString('ru-RU')}
                     </Text>
                     <Text
                       style={{
@@ -595,7 +557,7 @@ const OrderList = () => {
                         fontSize: 14,
                       }}
                     >
-                      {formatNumberWithSpaces(record.price)} сум/шт
+                      {record.price.toLocaleString('ru-RU')} сум/шт
                     </Text>
                   </div>
                 );
@@ -621,14 +583,8 @@ const OrderList = () => {
                   min={1}
                   max={record.quantity}
                   value={partialDeliveryQuantity}
-                  onChange={(value) =>
-                    setPartialDeliveryQuantity(parseInputNumber(value))
-                  }
+                  onChange={(value) => setPartialDeliveryQuantity(value)}
                   placeholder="Кол-во доставлено"
-                  formatter={(value) =>
-                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
-                  }
-                  parser={(value) => value.replace(/\s/g, '')}
                   style={{ marginRight: 8 }}
                 />
                 <Button
@@ -637,12 +593,7 @@ const OrderList = () => {
                   onClick={() =>
                     handlePartialDelivery(record.id, partialDeliveryQuantity)
                   }
-                  disabled={
-                    !partialDeliveryQuantity ||
-                    isNaN(partialDeliveryQuantity) ||
-                    partialDeliveryQuantity <= 0 ||
-                    partialDeliveryQuantity > record.quantity
-                  }
+                  disabled={!partialDeliveryQuantity}
                 />
               </div>
             );
@@ -656,7 +607,7 @@ const OrderList = () => {
                 onChange={(value) => {
                   if (value === 'partially-delivered') {
                     setPartialDeliveryOrderId(record.id);
-                    setPartialDeliveryQuantity(null);
+                    setPartialDeliveryQuantity(record.deliveredQuantity || null);
                   } else {
                     handleStatusChange(record.id, value);
                   }
@@ -671,9 +622,7 @@ const OrderList = () => {
                           {option.label}
                           {option.value === 'partially-delivered' &&
                             record.deliveredQuantity != null &&
-                            `: ${formatNumberWithSpaces(
-                              record.deliveredQuantity
-                            )} / ${formatNumberWithSpaces(record.quantity)}`}
+                            `: ${record.deliveredQuantity} / ${record.quantity}`}
                         </span>
                       }
                     />
