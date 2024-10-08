@@ -1,9 +1,9 @@
-/* mainPage.css */
+/* Customers.css */
 
 /* Контейнер для суммарных данных клиентов */
 .customers-summary {
-  margin-bottom: 26px;
-  margin-top: 35px;
+  margin-bottom: 20px;
+  margin-top: 25px;
   display: flex;
   align-items: center;
   flex-wrap: wrap; /* Позволяет элементам переноситься на новую строку при необходимости */
@@ -22,8 +22,7 @@
 
 .summary-text.with-logo,
 .summary-text.without-logo {
-  color: #9ca3aa;
-  font-weight: 400;
+  color: #8c8c8c;
 }
 
 /* Адаптивность для мобильных устройств */
@@ -45,4 +44,106 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+/* Стилизация карточек стандартных рулонов */
+.standard-roll-card .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.standard-roll-card .card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.usage-rates-title {
+  color: #8c8c8c;
+}
+
+.usage-rates-list {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 10px;
+}
+
+.usage-rate-item {
+  color: #8c8c8c;
+}
+
+/* Стилизация модальных окон */
+.ant-modal-title {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.ant-modal-content {
+  padding: 20px;
+}
+
+/* Стили для полей формы */
+.ant-form-item {
+  margin-bottom: 16px;
+}
+
+.ant-checkbox-group {
+  display: flex;
+  gap: 10px;
+}
+
+.ant-radio-group {
+  display: flex;
+  gap: 10px;
+}
+
+/* Стилизация заголовков и иконок в карточках рулонов */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Дополнительные стили для улучшения UI */
+.standard-roll-card {
+  border-radius: 8px;
+  margin-top: 12px;
+  margin-bottom: 34px;
+}
+
+.standard-roll-card .ant-card-head {
+  background-color: #e6f4ff;
+  border-bottom: none;
+}
+
+.standard-roll-card .ant-card-body {
+  padding: 16px;
+}
+
+.standard-roll-card .ant-progress {
+  margin-bottom: 10px;
+}
+
+.standard-roll-card p {
+  margin-bottom: 10px;
+  color: #595959;
+}
+
+.standard-roll-card ul {
+  padding-left: 20px;
+}
+
+.standard-roll-card li {
+  margin-bottom: 5px;
+}
+
+/* Увеличение вертикального пространства между заголовком таблицы и кнопкой добавления клиента */
+.standard-customers-header {
+  margin-bottom: 45px; /* Увеличено с 20px до 30px */
+  margin-top: 55px;
 }

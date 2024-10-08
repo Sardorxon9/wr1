@@ -1,3 +1,5 @@
+// Customers.jsx
+
 import React, { useState, useEffect } from 'react';
 import {
   Table,
@@ -15,6 +17,7 @@ import {
   Radio,
   Space,
   Select,
+  Checkbox,
 } from 'antd';
 import {
   collection,
@@ -45,8 +48,10 @@ const Customers = () => {
   const [standardRolls, setStandardRolls] = useState([]);
   const [isCustomerModalVisible, setIsCustomerModalVisible] = useState(false);
   const [isRollModalVisible, setIsRollModalVisible] = useState(false);
+  const [isEditRollModalVisible, setIsEditRollModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [rollForm] = Form.useForm();
+  const [editRollForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [buttonLoading, setButtonLoading] = useState(false);
   const { organizationID, role } = useOutletContext();
@@ -54,12 +59,13 @@ const Customers = () => {
   const [isStandardPaper, setIsStandardPaper] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [editingRoll, setEditingRoll] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
 
-  const productWeightOptions = [5, 4.5, 4, 3.5, 3];
+  const productWeightOptions = [5, 4.5, 4, 3.5];
 
   useEffect(() => {
     if (organizationID) {
@@ -114,6 +120,7 @@ const Customers = () => {
       );
       setCustomers(customersData);
     } catch (error) {
+      console.error("Ошибка при загрузке данных:", error);
       message.error('Ошибка при загрузке данных');
     } finally {
       setLoading(false);
@@ -121,14 +128,20 @@ const Customers = () => {
   };
 
   const fetchStandardRolls = async () => {
-    const rollsSnapshot = await getDocs(
-      collection(db, `organizations/${organizationID}/standard-rolls`)
-    );
-    const rollsData = rollsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    setStandardRolls(rollsData);
+    try {
+      const rollsSnapshot = await getDocs(
+        collection(db, `organizations/${organizationID}/standard-rolls`)
+      );
+      const rollsData = rollsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        usageRates: doc.data().usageRates || {},
+      }));
+      setStandardRolls(rollsData);
+    } catch (error) {
+      console.error("Ошибка при загрузке стандартных рулонов:", error);
+      message.error('Ошибка при загрузке стандартных рулонов');
+    }
   };
 
   const handleSaveCustomer = async (values) => {
@@ -178,6 +191,7 @@ const Customers = () => {
       setIsEditMode(false);
       setEditingCustomer(null);
     } catch (error) {
+      console.error("Ошибка при сохранении клиента:", error);
       message.error('Ошибка при сохранении клиента');
     } finally {
       setButtonLoading(false);
@@ -209,32 +223,131 @@ const Customers = () => {
       message.success('Клиент удален!');
       fetchProductsCategoriesAndCustomers();
     } catch (error) {
+      console.error("Ошибка при удалении клиента:", error);
       message.error('Ошибка при удалении клиента');
     }
   };
 
   const handleCreateStandardRoll = async (values) => {
+    setButtonLoading(true);
     try {
+      const { product, kg, weights, usageRates } = values;
+
+      // Проверка, что хотя бы одно usageRate указано
+      const hasAtLeastOneUsageRate = weights.some(weight => usageRates[weight] !== undefined && usageRates[weight] !== null);
+
+      if (!hasAtLeastOneUsageRate) {
+        message.error('Необходимо указать хотя бы один расход бумаги для выбранных весов!');
+        return;
+      }
+
+      // Форматирование usageRates в объект, где ключи — веса, а значения — usageRate
+      const formattedUsageRates = {};
+      weights.forEach((weight) => {
+        if (usageRates[weight] !== undefined && usageRates[weight] !== null) {
+          formattedUsageRates[weight] = usageRates[weight];
+        }
+      });
+
       await addDoc(
         collection(db, `organizations/${organizationID}/standard-rolls`),
         {
-          ...values,
-          used: 0,
-          remaining: values.kg,
           product: {
-            categoryId: values.product[0],
-            productId: values.product[1],
+            categoryId: product[0],
+            productId: product[1],
           },
-          usageRate: values.usageRate,
+          kg,
+          usageRates: formattedUsageRates,
+          used: 0,
+          remaining: kg,
         }
       );
+
       fetchStandardRolls();
       setIsRollModalVisible(false);
       rollForm.resetFields();
       message.success('Стандартный рулон добавлен!');
     } catch (error) {
+      console.error("Ошибка при добавлении стандартного рулона:", error);
       message.error('Ошибка при добавлении стандартного рулона');
+    } finally {
+      setButtonLoading(false);
     }
+  };
+
+  const handleEditRoll = (roll) => {
+    setEditingRoll(roll);
+    setIsEditRollModalVisible(true);
+    editRollForm.setFieldsValue({
+      product: [roll.product.categoryId, roll.product.productId],
+      kg: roll.kg,
+      weights: Object.keys(roll.usageRates).map(Number),
+      usageRates: roll.usageRates,
+    });
+  };
+
+  const handleUpdateStandardRoll = async (values) => {
+    setButtonLoading(true);
+    try {
+      const { product, kg, weights, usageRates } = values;
+
+      // Проверка, что хотя бы одно usageRate указано
+      const hasAtLeastOneUsageRate = weights.some(weight => usageRates[weight] !== undefined && usageRates[weight] !== null);
+
+      if (!hasAtLeastOneUsageRate) {
+        message.error('Необходимо указать хотя бы один расход бумаги для выбранных весов!');
+        return;
+      }
+
+      // Форматирование usageRates в объект, где ключи — веса, а значения — usageRate
+      const formattedUsageRates = {};
+      weights.forEach((weight) => {
+        if (usageRates[weight] !== undefined && usageRates[weight] !== null) {
+          formattedUsageRates[weight] = usageRates[weight];
+        }
+      });
+
+      const rollDocRef = doc(db, `organizations/${organizationID}/standard-rolls`, editingRoll.id);
+      await updateDoc(rollDocRef, {
+        product: {
+          categoryId: product[0],
+          productId: product[1],
+        },
+        kg,
+        usageRates: formattedUsageRates,
+        remaining: kg - editingRoll.used,
+      });
+
+      fetchStandardRolls();
+      setIsEditRollModalVisible(false);
+      setEditingRoll(null); // Исправлено на использование сеттера
+      editRollForm.resetFields();
+      message.success('Стандартный рулон обновлен!');
+    } catch (error) {
+      console.error("Ошибка при обновлении стандартного рулона:", error);
+      message.error('Ошибка при обновлении стандартного рулона');
+    } finally {
+      setButtonLoading(false);
+    }
+  };
+
+  const handleDeleteRoll = (rollId) => {
+    Modal.confirm({
+      title: 'Вы уверены, что хотите удалить этот стандартный рулон?',
+      okText: 'Да',
+      okType: 'danger',
+      cancelText: 'Нет',
+      onOk: async () => {
+        try {
+          await deleteDoc(doc(db, `organizations/${organizationID}/standard-rolls`, rollId));
+          fetchStandardRolls();
+          message.success('Стандартный рулон удален!');
+        } catch (error) {
+          console.error("Ошибка при удалении стандартного рулона:", error);
+          message.error('Ошибка при удалении стандартного рулона');
+        }
+      },
+    });
   };
 
   const renderStandardRollsCards = () =>
@@ -257,26 +370,49 @@ const Customers = () => {
           key={roll.id}
           className="standard-roll-card"
           title={
-            <>
-              <Text type="secondary">Стандартный дизайн</Text> →{' '}
-              <Text strong>{categoryName}</Text> →{' '}
-              <Text strong>{productName}</Text>
-            </>
+            <div className="card-header">
+              <Title level={5} style={{ color: '#002c8c', margin: 0 }}>
+                Рулон стандарт дизайн → {categoryName} / {productName}
+              </Title>
+              <div className="card-actions">
+                <EditOutlined
+                  style={{ marginRight: 8, color: '#1890ff', cursor: 'pointer' }}
+                  onClick={() => handleEditRoll(roll)}
+                />
+                <DeleteOutlined
+                  style={{ color: '#f5222d', cursor: 'pointer' }}
+                  onClick={() => handleDeleteRoll(roll.id)}
+                />
+              </div>
+            </div>
           }
           style={{
             marginBottom: '20px',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
           }}
-          headStyle={{ backgroundColor: '#e6f4ff' }}
+          headStyle={{ backgroundColor: '#e6f4ff', padding: '10px 16px' }}
         >
           <Progress
             percent={parseFloat(formattedUsedPercent)}
             status="active"
+            style={{ marginBottom: '10px' }}
           />
           <p>
             Использовано: {roll.used.toFixed(1)} кг | Осталось:{' '}
             {roll.remaining.toFixed(1)} кг
           </p>
+          <div>
+            <Title level={5} className="usage-rates-title">
+              Расход бумаги в граммах по весу сырья (1 000 шт )
+            </Title>
+            <ul className="usage-rates-list">
+              {Object.entries(roll.usageRates).map(([weight, rate]) => (
+                <li key={weight} className="usage-rate-item">
+                  Стик {weight} гр → Расход бумаги: {rate} гр
+                </li>
+              ))}
+            </ul>
+          </div>
         </Card>
       );
     });
@@ -429,7 +565,7 @@ const Customers = () => {
           Итого: {totalCustomers} клиентов
         </Text>
         <Text className="summary-text with-logo">
-           С логотипом: {customLabelCustomersCount}
+          С логотипом: {customLabelCustomersCount}
         </Text>
         <Text className="summary-text without-logo">
           Без лого: {standardLabelCustomersCount}
@@ -445,14 +581,14 @@ const Customers = () => {
           setSelectedProduct(null);
         }}
       >
-        <TabPane tab="Клиенты : с логотипом " key="1">
+        <TabPane tab="Клиенты : с логотипом" key="1">
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               marginBottom: '20px',
-              paddingTop: "15px"
+              paddingTop: '15px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -462,6 +598,7 @@ const Customers = () => {
                 prefix={<SearchOutlined />}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ width: '200px', marginRight: '10px' }}
+                allowClear
               />
               <Select
                 placeholder="Категория продукта"
@@ -510,16 +647,16 @@ const Customers = () => {
               Добавить нового клиента
             </Button>
           </div>
-          <div style={{marginTop: 65}}>  <Title level={4} >
-            Клиенты с индивидуальной этикеткой
-          </Title></div>
-        
+          <div style={{ marginTop: 65 }}>
+            <Title level={4}>Клиенты с индивидуальной этикеткой</Title>
+          </div>
           {renderCustomersTable(filteredCustomers, false)}
         </TabPane>
 
-        <TabPane tab="Клиенты : без лого ( стандарт ) " key="2">
+        <TabPane tab="Клиенты : без лого ( стандарт )" key="2">
           <Button
-            type="dashed"
+            type="primary"
+            ghost
             onClick={() => setIsRollModalVisible(true)}
             style={{ marginBottom: 20, marginTop: 10 }}
             icon={<PlusCircleOutlined />}
@@ -559,6 +696,7 @@ const Customers = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 prefix={<SearchOutlined />}
                 style={{ width: '200px', marginRight: '10px' }}
+                allowClear
               />
               <Select
                 placeholder="Категория продукта"
@@ -734,16 +872,110 @@ const Customers = () => {
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item
-            name="usageRate"
-            label="Бумага, необходимая для производства 1,000 шт (гр)"
+            name="weights"
+            label="Выберите веса (гр)"
             rules={[
               {
-                required: true,
-                message: 'Введите необходимое количество бумаги!',
+                validator: (_, value) => {
+                  if (value && value.length > 0) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Выберите хотя бы один вес!'));
+                },
               },
             ]}
           >
-            <InputNumber min={0} style={{ width: '100%' }} />
+            <Checkbox.Group options={[5, 4.5, 4, 3.5]} />
+          </Form.Item>
+          <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.weights !== currentValues.weights}>
+            {() => {
+              const selectedWeights = rollForm.getFieldValue('weights') || [];
+              return selectedWeights.map((weight) => (
+                <Form.Item
+                  key={weight}
+                  name={['usageRates', weight]}
+                  label={`Кол-во бумаги для производства 1,000 шт ${weight} гр`}
+                  rules={[
+                    {
+                      required: true,
+                      message: 'Введите количество бумаги для этого веса!',
+                    },
+                  ]}
+                >
+                  <InputNumber min={0} style={{ width: '100%' }} />
+                </Form.Item>
+              ));
+            }}
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Edit Standard Roll Modal */}
+      <Modal
+        title="Редактировать стандартный рулон"
+        visible={isEditRollModalVisible}
+        onCancel={() => {
+          setIsEditRollModalVisible(false);
+          setEditingRoll(null);
+          editRollForm.resetFields();
+        }}
+        onOk={editRollForm.submit}
+        confirmLoading={buttonLoading}
+      >
+        <Form
+          form={editRollForm}
+          layout="vertical"
+          onFinish={handleUpdateStandardRoll}
+        >
+          <Form.Item
+            name="product"
+            label="Продукт"
+            rules={[{ required: true, message: 'Выберите продукт!' }]}
+          >
+            <Cascader options={cascaderOptions} />
+          </Form.Item>
+          <Form.Item
+            name="kg"
+            label="Количество (кг)"
+            rules={[{ required: true, message: 'Введите количество (кг)!' }]}
+          >
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="weights"
+            label="Выберите веса (гр)"
+            rules={[
+              {
+                validator: (_, value) => {
+                  if (value && value.length > 0) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('Выберите хотя бы один вес!'));
+                },
+              },
+            ]}
+          >
+            <Checkbox.Group options={[5, 4.5, 4, 3.5]} />
+          </Form.Item>
+          <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.weights !== currentValues.weights}>
+            {() => {
+              const selectedWeights = editRollForm.getFieldValue('weights') || [];
+              return selectedWeights.map((weight) => (
+                <Form.Item
+                  key={weight}
+                  name={['usageRates', weight]}
+                  label={`Кол-во бумаги для производства 1,000 шт ${weight} гр`}
+                  rules={[
+                    {
+                      required: true,
+                      message: 'Введите количество бумаги для этого веса!',
+                    },
+                  ]}
+                >
+                  <InputNumber min={0} style={{ width: '100%' }} />
+                </Form.Item>
+              ));
+            }}
           </Form.Item>
         </Form>
       </Modal>
@@ -752,5 +984,3 @@ const Customers = () => {
 };
 
 export default Customers;
-
-
