@@ -1,5 +1,3 @@
-// CreateOrder.jsx
-
 import React, { useState, useEffect } from 'react';
 import {
   Form,
@@ -103,15 +101,6 @@ const CreateOrder = () => {
       );
       const customersData = customersSnapshot.docs.map((doc) => {
         const data = doc.data();
-        // Check if paperUsageRate is missing, set to 222
-        if (!data.hasOwnProperty('paperUsageRate')) {
-          const customerDocRef = doc(
-            db,
-            `organizations/${orgID}/customers`,
-            doc.id
-          );
-          updateDoc(customerDocRef, { paperUsageRate: 222 });
-        }
         return {
           id: doc.id,
           ...data,
@@ -409,15 +398,16 @@ const CreateOrder = () => {
           remaining: updatedRemaining,
         });
       } else {
-        // Customer uses custom paper
-        // Use selectedCustomer.paperUsageRate
-        const totalPaperRequired =
-          (values.quantity / 1000) * selectedCustomer.paperUsageRate / 1000; // Convert to kg
+        // Customer uses custom paper (custom label customer)
+        const quantityInThousands = values.quantity / 1000;
+        const paperUsageRate = selectedCustomer.paperUsageRate || 222; // grams per 1,000 units
+
+        const totalPaperRequired = (quantityInThousands * paperUsageRate) / 1000; // Convert to kg
 
         if (selectedCustomer.paper.available < totalPaperRequired) {
           const availablePaperGrams = selectedCustomer.paper.available * 1000;
           const maxThousandUnitsPaper = Math.floor(
-            availablePaperGrams / selectedCustomer.paperUsageRate
+            availablePaperGrams / paperUsageRate
           );
           const maxPossibleQuantityPaper = maxThousandUnitsPaper * 1000;
 
@@ -516,7 +506,7 @@ const CreateOrder = () => {
       {contextHolder}
       <div
         className="order-header"
-        style={{ marginBottom: '20px' }}
+        style={{ marginBottom: '20px' }} // Added whitespace
       >
         <div className="header-content-page">
           <Title level={3}>Добавить новый заказ</Title>
@@ -702,9 +692,7 @@ const CreateOrder = () => {
                         const product = products.find(
                           (prod) => prod.id === orderPreview.product[1]
                         );
-                        return `${category?.name || ''} → ${
-                          product?.title || ''
-                        }`;
+                        return `${category?.name || ''} → ${product?.title || ''}`;
                       })()
                     : ''}
                 </div>
