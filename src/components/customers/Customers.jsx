@@ -25,8 +25,12 @@ import {
 } from 'firebase/firestore';
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
-import './Customers.css'; // Import CSS for custom styles
-import { PlusCircleOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import './Customers.css';
+import {
+  PlusCircleOutlined,
+  EditOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -43,11 +47,11 @@ const Customers = () => {
   const [rollForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [buttonLoading, setButtonLoading] = useState(false);
-  const { organizationID, role } = useOutletContext(); // Include role
-  const [activeTab, setActiveTab] = useState('1'); // Track the active tab
-  const [isStandardPaper, setIsStandardPaper] = useState(false); // New state variable
-  const [isEditMode, setIsEditMode] = useState(false); // For editing customer
-  const [editingCustomer, setEditingCustomer] = useState(null); // Customer being edited
+  const { organizationID, role } = useOutletContext();
+  const [activeTab, setActiveTab] = useState('1');
+  const [isStandardPaper, setIsStandardPaper] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
 
   const productWeightOptions = [5, 4.5, 4, 3.5, 3];
 
@@ -63,10 +67,7 @@ const Customers = () => {
       const [categoriesSnapshot, productsSnapshot, customersSnapshot] =
         await Promise.all([
           getDocs(
-            collection(
-              db,
-              `organizations/${organizationID}/product-categories`
-            )
+            collection(db, `organizations/${organizationID}/product-categories`)
           ),
           getDocs(collection(db, `organizations/${organizationID}/products`)),
           getDocs(collection(db, `organizations/${organizationID}/customers`)),
@@ -86,7 +87,8 @@ const Customers = () => {
           id: doc.id,
           ...data,
           paper: data.paper || { used: 0, available: 0, remaining: 0 },
-          productWeight: data.productWeight || 5, // Assign default value if missing
+          productWeight: data.productWeight || 5,
+          paperUsageRate: data.paperUsageRate || 222,
         };
       });
 
@@ -141,15 +143,14 @@ const Customers = () => {
           available: availablePaper,
           remaining: availablePaper,
         };
+        customerData.paperUsageRate = values.paperUsageRate;
       }
 
-      // If price is undefined (member role), remove it from customerData
       if (role === 'member') {
         delete customerData.price;
       }
 
       if (isEditMode && editingCustomer) {
-        // Update existing customer
         const customerDocRef = doc(
           db,
           `organizations/${organizationID}/customers`,
@@ -158,7 +159,6 @@ const Customers = () => {
         await updateDoc(customerDocRef, customerData);
         message.success('Данные клиента обновлены!');
       } else {
-        // Add new customer
         await addDoc(
           collection(db, `organizations/${organizationID}/customers`),
           customerData
@@ -183,7 +183,6 @@ const Customers = () => {
     setEditingCustomer(customer);
     setIsCustomerModalVisible(true);
     setIsStandardPaper(customer.usesStandardPaper);
-    // Set form fields
     form.setFieldsValue({
       companyName: customer.companyName,
       brand: customer.brand,
@@ -192,6 +191,7 @@ const Customers = () => {
       price: customer.price,
       availablePaper: customer.paper ? customer.paper.available : 0,
       productWeight: customer.productWeight,
+      paperUsageRate: customer.paperUsageRate,
     });
   };
 
@@ -219,7 +219,7 @@ const Customers = () => {
             categoryId: values.product[0],
             productId: values.product[1],
           },
-          usageRate: values.usageRate, // Include usageRate
+          usageRate: values.usageRate,
         }
       );
       fetchStandardRolls();
@@ -236,7 +236,6 @@ const Customers = () => {
       const usedPercent = (roll.used / roll.kg) * 100;
       const formattedUsedPercent = usedPercent.toFixed(2);
 
-      // Get category and product names
       const category = categories.find(
         (cat) => cat.id === roll.product.categoryId
       );
@@ -304,14 +303,12 @@ const Customers = () => {
           );
         },
       },
-      // Add productWeight column
       {
         title: 'Вес продукта (гр)',
         dataIndex: 'productWeight',
         key: 'productWeight',
         render: (value) => `${value} гр`,
       },
-      // Conditionally include the Price column
       ...(role !== 'member'
         ? [
             {
@@ -319,19 +316,29 @@ const Customers = () => {
               dataIndex: 'price',
               key: 'price',
               render: (price) =>
-                price ? price.toLocaleString('ru-RU') + ' сум' : 'Цена не указана',
+                price
+                  ? price.toLocaleString('ru-RU') + ' сум'
+                  : 'Цена не указана',
             },
           ]
         : []),
     ];
 
     if (!isStandardPaperTab) {
-      columns.push({
-        title: 'Доступная бумага (кг)',
-        dataIndex: ['paper', 'available'],
-        key: 'availablePaper',
-        render: (value) => (value !== undefined ? value.toFixed(1) : '-'),
-      });
+      columns.push(
+        {
+          title: 'Бумага для 1,000 шт (гр)',
+          dataIndex: 'paperUsageRate',
+          key: 'paperUsageRate',
+          render: (value) => (value ? `${value} гр` : 'Не указано'),
+        },
+        {
+          title: 'Доступная бумага (кг)',
+          dataIndex: ['paper', 'available'],
+          key: 'availablePaper',
+          render: (value) => (value !== undefined ? value.toFixed(1) : '-'),
+        }
+      );
     }
 
     columns.push({
@@ -341,7 +348,6 @@ const Customers = () => {
       render: (value) => (value !== undefined ? value.toFixed(1) : '-'),
     });
 
-    // Add Actions column
     columns.push({
       title: 'Действия',
       key: 'actions',
@@ -404,7 +410,6 @@ const Customers = () => {
             Создать стандартный рулон
           </Button>
           {renderStandardRollsCards()}
-          {/* Align button and title */}
           <div
             style={{
               display: 'flex',
@@ -488,17 +493,25 @@ const Customers = () => {
           <Form.Item
             name="productWeight"
             label="Вес продукта (гр)"
-            rules={[{ required: true, message: 'Пожалуйста, выберите вес продукта!' }]}
+            rules={[
+              {
+                required: true,
+                message: 'Пожалуйста, выберите вес продукта!',
+              },
+            ]}
           >
             <Radio.Group>
               {productWeightOptions.map((weight) => (
-                <Radio.Button key={weight} value={weight} style={{ marginRight: 10 }}>
+                <Radio.Button
+                  key={weight}
+                  value={weight}
+                  style={{ marginRight: 10 }}
+                >
                   {weight} гр
                 </Radio.Button>
               ))}
             </Radio.Group>
           </Form.Item>
-          {/* Conditionally render the Price field */}
           {role !== 'member' && (
             <Form.Item
               name="price"
@@ -509,15 +522,29 @@ const Customers = () => {
             </Form.Item>
           )}
           {!isStandardPaper && (
-            <Form.Item
-              name="availablePaper"
-              label="Доступная бумага (кг)"
-              rules={[
-                { required: true, message: 'Введите количество бумаги!' },
-              ]}
-            >
-              <InputNumber min={0} style={{ width: '100%' }} />
-            </Form.Item>
+            <>
+              <Form.Item
+                name="availablePaper"
+                label="Доступная бумага (кг)"
+                rules={[
+                  { required: true, message: 'Введите количество бумаги!' },
+                ]}
+              >
+                <InputNumber min={0} style={{ width: '100%' }} />
+              </Form.Item>
+              <Form.Item
+                name="paperUsageRate"
+                label="Бумага необходимая для производ-во 1,000 шт (гр)"
+                rules={[
+                  {
+                    required: true,
+                    message: 'Введите необходимое количество бумаги!',
+                  },
+                ]}
+              >
+                <InputNumber min={0} style={{ width: '100%' }} />
+              </Form.Item>
+            </>
           )}
         </Form>
       </Modal>
