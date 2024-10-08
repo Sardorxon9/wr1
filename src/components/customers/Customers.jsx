@@ -14,6 +14,7 @@ import {
   Progress,
   Radio,
   Space,
+  Select,
 } from 'antd';
 import {
   collection,
@@ -52,6 +53,10 @@ const Customers = () => {
   const [isStandardPaper, setIsStandardPaper] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const productWeightOptions = [5, 4.5, 4, 3.5, 3];
 
@@ -294,7 +299,9 @@ const Customers = () => {
             (prod) => prod.id === product.productId
           );
           const categoryName = category ? category.name : 'Категория не найдена';
-          const productName = productData ? productData.title : 'Продукт не найден';
+          const productName = productData
+            ? productData.title
+            : 'Продукт не найден';
 
           return (
             <Text style={{ color: '#8c8c8c', fontWeight: 'lighter' }}>
@@ -376,28 +383,129 @@ const Customers = () => {
     );
   };
 
+  // Compute customer counts
+  const totalCustomers = customers.length;
+  const customLabelCustomersCount = customers.filter(
+    (c) => !c.usesStandardPaper
+  ).length;
+  const standardLabelCustomersCount = customers.filter(
+    (c) => c.usesStandardPaper
+  ).length;
+
+  // Filter customers based on search and filters
+  let customersList;
+  if (activeTab === '1') {
+    customersList = customers.filter((c) => !c.usesStandardPaper);
+  } else {
+    customersList = customers.filter((c) => c.usesStandardPaper);
+  }
+
+  const filteredCustomers = customersList.filter((customer) => {
+    // Apply search filter
+    const matchesSearch = [customer.companyName, customer.brand, customer.personInCharge]
+      .some((field) =>
+        field.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+    // Apply category filter
+    const matchesCategory = selectedCategory
+      ? customer.product.categoryId === selectedCategory
+      : true;
+
+    // Apply product filter
+    const matchesProduct = selectedProduct
+      ? customer.product.productId === selectedProduct
+      : true;
+
+    return matchesSearch && matchesCategory && matchesProduct;
+  });
+
   return (
     <div>
       <Title level={2}>Клиенты</Title>
-      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+      <div style={{ marginBottom: '20px', marginTop: '25px' }}>
+        <Text style={{ color: '#595959', fontWeight: '600', marginRight:2 }}>
+          Итого: {totalCustomers} клиентов {' '}
+        </Text>
+        <Text style={{ color: '#8c8c8c', marginLeft: '14px' }}>
+        {' '} | С логотипом: {customLabelCustomersCount}  {' '}  |   Без лого:{' '}
+          {standardLabelCustomersCount}
+        </Text>
+      </div>
+      <Tabs activeKey={activeTab} onChange={(key) => {
+        setActiveTab(key);
+        // Reset filters when changing tabs
+        setSearchQuery('');
+        setSelectedCategory(null);
+        setSelectedProduct(null);
+      }}>
         <TabPane tab="Индивидуальная бумага" key="1">
-          <Button
-            type="primary"
-            onClick={() => {
-              setIsCustomerModalVisible(true);
-              setIsStandardPaper(false);
-              setIsEditMode(false);
-              setEditingCustomer(null);
-              form.resetFields();
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
             }}
-            style={{ marginBottom: 20 }}
           >
-            Добавить нового клиента
-          </Button>
-          {renderCustomersTable(
-            customers.filter((c) => !c.usesStandardPaper),
-            false
-          )}
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <Input
+                placeholder="Поиск клиентов"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '200px', marginRight: '10px' }}
+              />
+              <Select
+                placeholder="Категория продукта"
+                style={{ width: '200px', marginRight: '10px' }}
+                value={selectedCategory}
+                onChange={(value) => {
+                  setSelectedCategory(value);
+                  setSelectedProduct(null);
+                }}
+                allowClear
+              >
+                {categories.map((category) => (
+                  <Select.Option key={category.id} value={category.id}>
+                    {category.name}
+                  </Select.Option>
+                ))}
+              </Select>
+              <Select
+                placeholder="Продукт"
+                style={{ width: '200px' }}
+                value={selectedProduct}
+                onChange={(value) => setSelectedProduct(value)}
+                disabled={!selectedCategory}
+                allowClear
+              >
+                {selectedCategory &&
+                  products
+                    .filter((product) => product.categoryId === selectedCategory)
+                    .map((product) => (
+                      <Select.Option key={product.id} value={product.id}>
+                        {product.title}
+                      </Select.Option>
+                    ))}
+              </Select>
+            </div>
+            <Button
+              type="primary"
+              onClick={() => {
+                setIsCustomerModalVisible(true);
+                setIsStandardPaper(false);
+                setIsEditMode(false);
+                setEditingCustomer(null);
+                form.resetFields();
+              }}
+            >
+              Добавить нового клиента
+            </Button>
+          </div>
+          <Title level={4} style={{ marginBottom: 20 }}>
+            Клиенты с индивидуальной этикеткой
+          </Title>
+          {renderCustomersTable(filteredCustomers, false)}
         </TabPane>
 
         <TabPane tab="Стандартная бумага" key="2">
@@ -435,10 +543,69 @@ const Customers = () => {
               Добавить клиента со стандартной этикеткой
             </Button>
           </div>
-          {renderCustomersTable(
-            customers.filter((c) => c.usesStandardPaper),
-            true
-          )}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <Input
+                placeholder="Поиск клиентов"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ width: '200px', marginRight: '10px' }}
+              />
+              <Select
+                placeholder="Категория продукта"
+                style={{ width: '200px', marginRight: '10px' }}
+                value={selectedCategory}
+                onChange={(value) => {
+                  setSelectedCategory(value);
+                  setSelectedProduct(null);
+                }}
+                allowClear
+              >
+                {categories.map((category) => (
+                  <Select.Option key={category.id} value={category.id}>
+                    {category.name}
+                  </Select.Option>
+                ))}
+              </Select>
+              <Select
+                placeholder="Продукт"
+                style={{ width: '200px' }}
+                value={selectedProduct}
+                onChange={(value) => setSelectedProduct(value)}
+                disabled={!selectedCategory}
+                allowClear
+              >
+                {selectedCategory &&
+                  products
+                    .filter((product) => product.categoryId === selectedCategory)
+                    .map((product) => (
+                      <Select.Option key={product.id} value={product.id}>
+                        {product.title}
+                      </Select.Option>
+                    ))}
+              </Select>
+            </div>
+            <Button
+              type="primary"
+              onClick={() => {
+                setIsCustomerModalVisible(true);
+                setIsStandardPaper(true);
+                setIsEditMode(false);
+                setEditingCustomer(null);
+                form.resetFields();
+              }}
+            >
+              Добавить клиента со стандартной этикеткой
+            </Button>
+          </div>
+          {renderCustomersTable(filteredCustomers, true)}
         </TabPane>
       </Tabs>
 
@@ -595,3 +762,5 @@ const Customers = () => {
 };
 
 export default Customers;
+
+
