@@ -7,12 +7,12 @@ import {
   Badge,
   Radio,
   Card,
-  Switch,
   Tabs,
   Spin,
   Button,
   Modal,
   InputNumber,
+  Input,
 } from 'antd';
 import {
   UnorderedListOutlined,
@@ -22,6 +22,7 @@ import {
   LoadingOutlined,
   DeleteOutlined,
   CheckOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import {
   collection,
@@ -40,38 +41,39 @@ import './OrderList.css';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
+const { Option } = Select;
 
 const statusOptions = [
   {
     label: 'В процессе',
     value: 'in-progress',
     color: 'orange',
-    backgroundColor: '#E6F4FF',
-    textColor: '#355A77',
+    backgroundColor: '#FFE7BA',
+    textColor: '#FF8C00',
     icon: <CarOutlined />,
   },
   {
     label: 'Готов к отправке',
     value: 'ready',
     color: 'blue',
-    backgroundColor: '#FDEADC',
-    textColor: '#D8844C',
+    backgroundColor: '#BAE1FF',
+    textColor: '#1E90FF',
     icon: <CodeSandboxOutlined />,
   },
   {
     label: 'Частично доставлено',
     value: 'partially-delivered',
     color: 'teal',
-    backgroundColor: '#E0F2F1',
-    textColor: '#00796B',
+    backgroundColor: '#B2DFDB',
+    textColor: '#00897B',
     icon: <CarOutlined />,
   },
   {
     label: 'Доставлено',
     value: 'delivered',
     color: 'green',
-    backgroundColor: '#E3F6EB',
-    textColor: '#3D8C5C',
+    backgroundColor: '#C8E6C9',
+    textColor: '#388E3C',
     icon: <CarOutlined />,
   },
 ];
@@ -91,6 +93,11 @@ const OrderList = () => {
   const [partialDeliveryOrderId, setPartialDeliveryOrderId] = useState(null);
   const [partialDeliveryQuantity, setPartialDeliveryQuantity] = useState(null);
 
+  // New States for Search and Sort
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortCategory, setSortCategory] = useState(null);
+  const [sortProduct, setSortProduct] = useState(null);
+
   useEffect(() => {
     if (organizationID) {
       fetchOrdersAndProducts(organizationID);
@@ -104,14 +111,15 @@ const OrderList = () => {
     try {
       // Fetch orders ordered by date descending
       const ordersRef = collection(db, `organizations/${orgID}/orders`);
-      const ordersQuery = query(ordersRef, orderBy('date', 'desc'));
-      const ordersSnapshot = await getDocs(ordersQuery);
+      const ordersQueryInstance = query(ordersRef, orderBy('date', 'desc'));
+      const ordersSnapshot = await getDocs(ordersQueryInstance);
       const orders = ordersSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
       setDataSource(orders);
 
+      // Fetch products
       const productsSnapshot = await getDocs(
         collection(db, `organizations/${orgID}/products`)
       );
@@ -121,6 +129,7 @@ const OrderList = () => {
       }));
       setProducts(productsData);
 
+      // Fetch categories
       const categoriesSnapshot = await getDocs(
         collection(db, `organizations/${orgID}/product-categories`)
       );
@@ -130,6 +139,7 @@ const OrderList = () => {
       }));
       setCategories(categoriesData);
 
+      // Fetch customers
       const customersSnapshot = await getDocs(
         collection(db, `organizations/${orgID}/customers`)
       );
@@ -282,16 +292,19 @@ const OrderList = () => {
             }
           }
         }
+
+        // Delete the order document from Firestore
+        await deleteDoc(doc(db, `organizations/${organizationID}/orders`, id));
+
+        // Update local state to reflect the deleted order
+        setDataSource((prevDataSource) =>
+          prevDataSource.filter((order) => order.id !== id)
+        );
+
+        message.success('Заказ успешно удален');
       }
-
-      // Delete the order document from Firestore
-      await deleteDoc(doc(db, `organizations/${organizationID}/orders`, id));
-
-      // Update local state to reflect the deleted order
-      setDataSource(dataSource.filter((order) => order.id !== id));
-
-      message.success('Заказ успешно удален');
     } catch (error) {
+      console.error('Ошибка при удалении заказа:', error);
       message.error('Ошибка при удалении заказа: ' + error.message);
     }
   };
@@ -425,6 +438,7 @@ const OrderList = () => {
                   <Text
                     style={{
                       display: 'block',
+                      fontWeight: 200,
                       color: '#6B7280',
                       fontSize: 14,
                     }}
@@ -467,6 +481,8 @@ const OrderList = () => {
     {
       title: 'ДАТА',
       dataIndex: 'date',
+      sorter: (a, b) =>
+        new Date(a.date.seconds * 1000) - new Date(b.date.seconds * 1000),
       render: (_, record) => {
         if (record.date && record.date.seconds) {
           return new Date(record.date.seconds * 1000).toLocaleDateString(
@@ -485,6 +501,11 @@ const OrderList = () => {
     {
       title: 'КОМПАНИЯ',
       dataIndex: 'client',
+      sorter: (a, b) => {
+        const nameA = a.client?.companyName.toLowerCase() || '';
+        const nameB = b.client?.companyName.toLowerCase() || '';
+        return nameA.localeCompare(nameB);
+      },
       render: (_, record) => {
         if (record.client?.brand && record.client?.companyName) {
           return (
@@ -511,6 +532,15 @@ const OrderList = () => {
     {
       title: 'ПРОДУКТ',
       dataIndex: 'product',
+      sorter: (a, b) => {
+        const productA = `${getCategoryName(a.product.categoryId)} > ${getProductName(
+          a.product.productId
+        )}`.toLowerCase();
+        const productB = `${getCategoryName(b.product.categoryId)} > ${getProductName(
+          b.product.productId
+        )}`.toLowerCase();
+        return productA.localeCompare(productB);
+      },
       render: (_, record) => {
         if (record.product) {
           const productName = `${getCategoryName(
@@ -532,6 +562,7 @@ const OrderList = () => {
     {
       title: 'КОЛИЧЕСТВО',
       dataIndex: 'quantity',
+      sorter: (a, b) => a.quantity - b.quantity,
       render: (quantity) =>
         quantity ? quantity.toLocaleString('ru-RU') : 'Кол-во не указано',
     },
@@ -540,12 +571,15 @@ const OrderList = () => {
           {
             title: 'ЦЕНА',
             dataIndex: 'price',
+            sorter: (a, b) =>
+              (a.quantity * a.price) - (b.quantity * b.price),
             render: (_, record) => {
               if (record.price !== undefined) {
                 return (
                   <div style={{ textAlign: 'left' }}>
                     <Text
-                      style={{ fontSize: 16, fontWeight: 600, color: '#000' }}
+                      strong
+                      style={{ fontSize: 16, color: '#000' }}
                     >
                       {(record.quantity * record.price).toLocaleString('ru-RU')}
                     </Text>
@@ -571,6 +605,7 @@ const OrderList = () => {
     {
       title: 'СТАТУС',
       dataIndex: 'status',
+      sorter: (a, b) => a.status.localeCompare(b.status),
       render: (_, record) => {
         const statusOption = statusOptions.find(
           (option) => option.value === record.status
@@ -638,6 +673,7 @@ const OrderList = () => {
     {
       title: 'ДЕЙСТВИЕ',
       key: 'action',
+      sorter: false,
       render: (_, record) => (
         <Button
           type="link"
@@ -654,10 +690,52 @@ const OrderList = () => {
     },
   ];
 
-  const filteredDataSource =
-    selectedStatus === 'all'
-      ? dataSource
-      : dataSource.filter((order) => order.status === selectedStatus);
+  // Function to handle sorting and filtering
+  const getFilteredSortedData = () => {
+    let filteredData = dataSource;
+
+    // Filter by status
+    if (selectedStatus !== 'all') {
+      filteredData = filteredData.filter(
+        (order) => order.status === selectedStatus
+      );
+    }
+
+    // Search Filter
+    if (searchQuery.trim() !== '') {
+      const queryLower = searchQuery.toLowerCase();
+      filteredData = filteredData.filter((order) => {
+        const client = order.client;
+        if (!client) return false;
+        const companyName = client.companyName || '';
+        const brand = client.brand || '';
+        const personInCharge = client.personInCharge || '';
+        return (
+          companyName.toLowerCase().includes(queryLower) ||
+          brand.toLowerCase().includes(queryLower) ||
+          personInCharge.toLowerCase().includes(queryLower)
+        );
+      });
+    }
+
+    // Sort by Category
+    if (sortCategory) {
+      filteredData = filteredData.filter(
+        (order) => order.product.categoryId === sortCategory
+      );
+    }
+
+    // Sort by Product
+    if (sortProduct) {
+      filteredData = filteredData.filter(
+        (order) => order.product.productId === sortProduct
+      );
+    }
+
+    return filteredData;
+  };
+
+  const filteredDataSource = getFilteredSortedData();
 
   return (
     <>
@@ -675,16 +753,68 @@ const OrderList = () => {
           </Radio.Button>
         </Radio.Group>
       </div>
+
+      {/* Search and Sort Controls */}
+      <div className="search-sort-container">
+        <div className="left-controls">
+          <Input
+            placeholder="Поиск клиентов"
+            prefix={<SearchOutlined />}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ width: '200px', marginRight: '10px' }}
+            allowClear
+          />
+          <Select
+            placeholder="Категория продукта"
+            style={{ width: '200px', marginRight: '10px' }}
+            value={sortCategory}
+            onChange={(value) => {
+              setSortCategory(value);
+              setSortProduct(null); // Reset product filter when category changes
+            }}
+            allowClear
+          >
+            {categories.map((category) => (
+              <Option key={category.id} value={category.id}>
+                {category.name}
+              </Option>
+            ))}
+          </Select>
+          <Select
+            placeholder="Продукт"
+            style={{ width: '200px' }}
+            value={sortProduct}
+            onChange={(value) => setSortProduct(value)}
+            disabled={!sortCategory}
+            allowClear
+          >
+            {sortCategory &&
+              products
+                .filter((product) => product.categoryId === sortCategory)
+                .map((product) => (
+                  <Option key={product.id} value={product.id}>
+                    {product.title}
+                  </Option>
+                ))}
+          </Select>
+        </div>
+        {/* Add any right-side controls here if needed */}
+      </div>
+
+      {/* Status Tabs */}
       <Tabs
         defaultActiveKey="all"
         onChange={(key) => setSelectedStatus(key)}
         activeKey={selectedStatus}
+        style={{ marginBottom: '20px' }}
       >
         <TabPane tab="Все" key="all" />
         {statusOptions.map((option) => (
           <TabPane tab={option.label} key={option.value} />
         ))}
       </Tabs>
+
       {loading ? (
         <div
           style={{
@@ -701,7 +831,13 @@ const OrderList = () => {
           rowKey="id"
           columns={columns}
           dataSource={filteredDataSource}
-          pagination={false}
+          pagination={{ pageSize: 15 }}
+          onChange={(pagination, filters, sorter) => {
+            console.log('Table params:', pagination, filters, sorter);
+          }}
+          showSorterTooltip={{
+            target: 'sorter-icon',
+          }}
         />
       ) : (
         renderCardView()

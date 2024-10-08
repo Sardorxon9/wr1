@@ -1,3 +1,5 @@
+// src/components/MainPage.jsx
+
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification, theme, Drawer, Modal } from 'antd';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
@@ -28,7 +30,7 @@ const MainPage = () => {
   const [userDetails, setUserDetails] = useState(null);
   const [organizationName, setOrganizationName] = useState('');
   const [organizationID, setOrganizationID] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Состояние загрузки данных пользователя
   const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -38,27 +40,20 @@ const MainPage = () => {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  useEffect(() => {
-    if (auth.currentUser?.uid) {
-      fetchUserData();
-    } else {
-      console.error('No user found');
-      navigate("/error");
-    }
-  }, []);
-
+  // Устанавливаем слушатель состояния аутентификации
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
-        fetchUserData();
+        fetchUserData(user.uid);
       } else {
         console.error('No user found');
         navigate("/error");
       }
     });
-    return () => unsubscribe(); // Cleanup the listener on component unmount
+    return () => unsubscribe(); // Очистка слушателя при размонтировании компонента
   }, []);
 
+  // Обработка изменения размера окна для адаптивного дизайна
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -67,17 +62,16 @@ const MainPage = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const fetchUserData = async () => {
+  // Функция для получения данных пользователя
+  const fetchUserData = async (userUid) => {
     try {
-      const userUid = auth.currentUser.uid;
-
-      // Check if the user is an owner
+      // Проверка, является ли пользователь владельцем (owner)
       const ownerDocRef = doc(db, "owner-users", userUid);
       const ownerDocSnap = await getDoc(ownerDocRef);
 
       if (ownerDocSnap.exists()) {
         const userData = ownerDocSnap.data();
-        userData.role = 'owner'; // Set role as owner
+        userData.role = 'owner'; // Устанавливаем роль как owner
         setUserDetails(userData);
 
         if (userData.organizationID) {
@@ -93,7 +87,7 @@ const MainPage = () => {
           console.error("No organizationID found for owner user");
         }
       } else {
-        // User is not an owner, check if they are a member
+        // Если пользователь не является владельцем, проверяем его членство в организациях
         const organizationsRef = collection(db, "organizations");
         const orgsSnapshot = await getDocs(organizationsRef);
 
@@ -106,18 +100,18 @@ const MainPage = () => {
 
           if (memberDocSnap.exists()) {
             const memberData = memberDocSnap.data();
-            memberData.role = 'member'; // Set role as member
+            memberData.role = 'member'; // Устанавливаем роль как member
             setUserDetails(memberData);
-            setOrganizationID(orgID); // Set organization ID from the organization where the user is a member
+            setOrganizationID(orgID); // Устанавливаем ID организации, где пользователь является членом
             setOrganizationName(orgDoc.data().name);
             isMember = true;
-            break; // Exit the loop once the user is found in any organization
+            break; // Прерываем цикл, если пользователь найден в одной из организаций
           }
         }
 
         if (!isMember) {
           console.error("User not found in owner-users or any organization's members");
-          navigate("/error"); // Redirect to error page if user is not found in either collection
+          navigate("/error"); // Перенаправляем на страницу ошибки, если пользователь не найден
         }
       }
     } catch (error) {
@@ -127,9 +121,10 @@ const MainPage = () => {
         description: 'Не удалось загрузить данные пользователя.',
       });
     }
-    setLoading(false);
+    setLoading(false); // Останавливаем спиннер после завершения загрузки
   };
 
+  // Функция выхода из аккаунта
   const handleLogout = () => {
     auth.signOut().then(() => {
       navigate('/login');
@@ -154,6 +149,7 @@ const MainPage = () => {
     setLogoutModalVisible(false);
   };
 
+  // Определение пунктов меню
   const menuItems = [
     {
       key: '1',
@@ -190,25 +186,41 @@ const MainPage = () => {
     {
       key: '7',
       icon: <CodeSandboxOutlined />,
-      // Ensure organizationID is defined before using it in the Link
       label: <Link to="/mainpage/materials" state={organizationID ? { organizationID } : {}} onClick={() => setDrawerVisible(false)}>Сырье</Link>,
     },
     {
       key: '8',
       icon: <GroupOutlined/>,
-      // Ensure organizationID is defined before using it in the Link
       label: <Link to="/mainpage/manage-paper" state={organizationID ? { organizationID } : {}} onClick={() => setDrawerVisible(false)}>Бумаги</Link>,
     },
     {
       key: '9',
-      icon: <LogoutOutlined style={{ color: '#f5222d' }} />, // Red color for logout icon
+      icon: <LogoutOutlined style={{ color: '#f5222d' }} />, // Красный цвет иконки выхода
       label: (
-        <Button type="link" onClick={showLogoutModal} style={{color: "#d9d9d9",  paddingLeft: 0,  }}> {/* Added margin for spacing */}
+        <Button type="link" onClick={showLogoutModal} style={{color: "#d9d9d9",  paddingLeft: 0,  }}> {/* Добавлен отступ для разрыва */}
           Выйти
         </Button>
       ),
     },
   ];
+
+  // Если данные пользователя загружаются, показываем спиннер
+  if (loading) {
+    return (
+      <Layout style={{ minHeight: '100vh' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+          }}
+        >
+          <Spin size="large" />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -287,16 +299,10 @@ const MainPage = () => {
             borderRadius: borderRadiusLG,
           }}
         >
-          {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-              <Spin />
-            </div>
-          ) : (
-            <Outlet context={{ organizationID, role: userDetails?.role, userDetails }} />
-          )}
+          <Outlet context={{ organizationID, role: userDetails?.role, userDetails }} />
         </Content>
       </Layout>
-      {/* Logout Confirmation Modal */}
+      {/* Модальное окно подтверждения выхода */}
       <Modal
         title="Подтвердите выход"
         visible={logoutModalVisible}
