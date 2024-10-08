@@ -424,36 +424,42 @@ const Customers = () => {
   return (
     <div>
       <Title level={2}>Клиенты</Title>
-      <div style={{ marginBottom: '20px', marginTop: '25px' }}>
-        <Text style={{ color: '#595959', fontWeight: '600', marginRight:2 }}>
-          Итого: {totalCustomers} клиентов {' '}
+      <div className="customers-summary">
+        <Text className="summary-text total">
+          Итого: {totalCustomers} клиентов
         </Text>
-        <Text style={{ color: '#8c8c8c', marginLeft: '14px' }}>
-        {' '} | С логотипом: {customLabelCustomersCount}  {' '}  |   Без лого:{' '}
-          {standardLabelCustomersCount}
+        <Text className="summary-text with-logo">
+           С логотипом: {customLabelCustomersCount}
+        </Text>
+        <Text className="summary-text without-logo">
+          Без лого: {standardLabelCustomersCount}
         </Text>
       </div>
-      <Tabs activeKey={activeTab} onChange={(key) => {
-        setActiveTab(key);
-        // Reset filters when changing tabs
-        setSearchQuery('');
-        setSelectedCategory(null);
-        setSelectedProduct(null);
-      }}>
-        <TabPane tab="Индивидуальная бумага" key="1">
+      <Tabs
+        activeKey={activeTab}
+        onChange={(key) => {
+          setActiveTab(key);
+          // Сбросить фильтры при смене вкладок
+          setSearchQuery('');
+          setSelectedCategory(null);
+          setSelectedProduct(null);
+        }}
+      >
+        <TabPane tab="Клиенты : с логотипом " key="1">
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               marginBottom: '20px',
+              paddingTop: "15px"
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <Input
                 placeholder="Поиск клиентов"
                 value={searchQuery}
-                prefix={<SearchOutlined  />}
+                prefix={<SearchOutlined />}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ width: '200px', marginRight: '10px' }}
               />
@@ -504,13 +510,14 @@ const Customers = () => {
               Добавить нового клиента
             </Button>
           </div>
-          <Title level={4} style={{ marginBottom: 20 }}>
+          <div style={{marginTop: 65}}>  <Title level={4} >
             Клиенты с индивидуальной этикеткой
-          </Title>
+          </Title></div>
+        
           {renderCustomersTable(filteredCustomers, false)}
         </TabPane>
 
-        <TabPane tab="Стандартная бумага" key="2">
+        <TabPane tab="Клиенты : без лого ( стандарт ) " key="2">
           <Button
             type="dashed"
             onClick={() => setIsRollModalVisible(true)}
@@ -520,15 +527,7 @@ const Customers = () => {
             Создать стандартный рулон
           </Button>
           {renderStandardRollsCards()}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 20,
-              marginTop: 20,
-            }}
-          >
+          <div className="standard-customers-header">
             <Title level={4} style={{ margin: 0 }}>
               Клиенты со стандартной этикеткой
             </Title>
@@ -558,7 +557,7 @@ const Customers = () => {
                 placeholder="Поиск клиентов"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                prefix={<SearchOutlined  />}
+                prefix={<SearchOutlined />}
                 style={{ width: '200px', marginRight: '10px' }}
               />
               <Select
@@ -595,7 +594,6 @@ const Customers = () => {
                     ))}
               </Select>
             </div>
-        
           </div>
           {renderCustomersTable(filteredCustomers, true)}
         </TabPane>

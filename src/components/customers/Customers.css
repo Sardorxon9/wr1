@@ -1,15 +1,48 @@
-.standard-roll-card {
-    margin-bottom: 20px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-  
-  .standard-roll-card .ant-card-head {
-    background-color: #1677ff;
+/* mainPage.css */
 
+/* Контейнер для суммарных данных клиентов */
+.customers-summary {
+  margin-bottom: 26px;
+  margin-top: 35px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap; /* Позволяет элементам переноситься на новую строку при необходимости */
+}
+
+/* Общие стили для текстов */
+.summary-text {
+  font-weight: 600;
+  margin-right: 20px; /* Горизонтальный отступ между элементами */
+}
+
+/* Специфические классы для различных текстов */
+.summary-text.total {
+  color: #595959;
+}
+
+.summary-text.with-logo,
+.summary-text.without-logo {
+  color: #9ca3aa;
+  font-weight: 400;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+  .customers-summary {
+    flex-direction: column;
+    align-items: flex-start;
   }
-  
-  .standard-roll-card .ant-card-body {
-    border: none; /* Ensure no borders */
+
+  .summary-text {
+    margin-right: 0;
+    margin-bottom: 8px; /* Вертикальный отступ между элементами */
   }
-  
-  
+}
+
+/* Дополнительные стили для заголовков внутри вкладок */
+.standard-customers-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
