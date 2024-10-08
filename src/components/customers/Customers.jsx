@@ -31,6 +31,7 @@ import {
   PlusCircleOutlined,
   EditOutlined,
   DeleteOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -452,6 +453,7 @@ const Customers = () => {
               <Input
                 placeholder="Поиск клиентов"
                 value={searchQuery}
+                prefix={<SearchOutlined  />}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ width: '200px', marginRight: '10px' }}
               />
@@ -556,6 +558,7 @@ const Customers = () => {
                 placeholder="Поиск клиентов"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                prefix={<SearchOutlined  />}
                 style={{ width: '200px', marginRight: '10px' }}
               />
               <Select
@@ -592,18 +595,7 @@ const Customers = () => {
                     ))}
               </Select>
             </div>
-            <Button
-              type="primary"
-              onClick={() => {
-                setIsCustomerModalVisible(true);
-                setIsStandardPaper(true);
-                setIsEditMode(false);
-                setEditingCustomer(null);
-                form.resetFields();
-              }}
-            >
-              Добавить клиента со стандартной этикеткой
-            </Button>
+        
           </div>
           {renderCustomersTable(filteredCustomers, true)}
         </TabPane>
