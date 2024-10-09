@@ -41,7 +41,8 @@ const LoginPage = () => {
       const ownerDocSnap = await getDoc(ownerDocRef);
       if (ownerDocSnap.exists()) {
         const ownerData = ownerDocSnap.data();
-        navigate('/mainpage', {
+        navigate('/mainpage/dashboard', {
+          replace: true,
           state: { organizationID: ownerData.organizationID, role: 'owner' },
         });
       } else {
@@ -61,9 +62,10 @@ const LoginPage = () => {
           if (memberDocSnap.exists()) {
             const memberData = memberDocSnap.data();
             if (memberData.role === 'member') {
-              navigate('/mainpage', {
+              navigate('/mainpage/dashboard', {
+                replace: true,
                 state: {
-                  organizationID: memberData.organizationID,
+                  organizationID: orgID,
                   role: 'member',
                 },
               });

@@ -1,4 +1,3 @@
-// src/components/MainPage.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Layout,
@@ -14,7 +13,7 @@ import {
   Modal,
   Alert,
 } from 'antd';
-import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { auth, db } from '../login-signUp/firebase';
 import { getDoc, doc, collection, getDocs, onSnapshot } from "firebase/firestore";
 import {
@@ -30,6 +29,8 @@ import {
   CodeSandboxOutlined,
   GroupOutlined,
   ExclamationCircleFilled,
+  MenuUnfoldOutlined,
+  MenuFoldOutlined,
 } from '@ant-design/icons';
 import './mainPage.css';
 
@@ -38,13 +39,13 @@ const { Title, Text } = Typography;
 
 const MainPage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [userDetails, setUserDetails] = useState(null);
   const [organizationName, setOrganizationName] = useState('');
   const [organizationID, setOrganizationID] = useState('');
   const [loading, setLoading] = useState(true);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [collapsed, setCollapsed] = useState(false);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
   const [alertMessages, setAlertMessages] = useState([]);
   const [detailedAlertData, setDetailedAlertData] = useState({
@@ -62,7 +63,6 @@ const MainPage = () => {
       setIsMobile(window.innerWidth < 768);
     }
     window.addEventListener('resize', handleResize);
-    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -302,9 +302,9 @@ const MainPage = () => {
           <Menu theme="dark" mode="inline" items={menuItems} />
         </Drawer>
       ) : (
-        <Sider trigger={null} collapsible collapsed={false}>
+        <Sider trigger={null} collapsible collapsed={collapsed}>
           <div className="whiteray-logo">
-            {organizationName || 'Loading...'}
+            {collapsed ? '..' : organizationName || 'Loading...'}
           </div>
           <Menu theme="dark" mode="inline" defaultSelectedKeys={['1']} items={menuItems} />
         </Sider>
@@ -319,11 +319,21 @@ const MainPage = () => {
             alignItems: 'center',
           }}
         >
-          {isMobile && (
+          {isMobile ? (
             <Button
               type="text"
               icon={<MenuOutlined />}
               onClick={() => setDrawerVisible(true)}
+              style={{
+                fontSize: '16px',
+                marginLeft: 16,
+              }}
+            />
+          ) : (
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
               style={{
                 fontSize: '16px',
                 marginLeft: 16,
@@ -346,10 +356,10 @@ const MainPage = () => {
               }
               type="warning"
               showIcon
-              style={{ maxWidth: '60%', margin: '0 16px', flexShrink: 0 }}
+              style={{ maxWidth: '60%', margin: '0 auto', flexShrink: 0 }}
             />
           )}
-          <div className="userdata">
+          <div className="userdata" style={{ marginRight: 16, lineHeight: '1.2' }}>
             <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
             <Space direction="vertical" size={0} className="user-info">
               <Text className="user-name" strong>{userDetails?.fullName}</Text>
