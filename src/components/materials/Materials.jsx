@@ -1,3 +1,5 @@
+// Materials.jsx
+
 import React, { useState, useEffect } from 'react';
 import {
   Table,
@@ -14,6 +16,7 @@ import {
   Divider,
   Radio,
   Spin,
+  Tabs,
 } from 'antd';
 import {
   collection,
@@ -21,22 +24,29 @@ import {
   getDocs,
   query,
   orderBy,
+  doc,
+  updateDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
 import {
-  ExclamationCircleOutlined,
   PlusOutlined,
   UnorderedListOutlined,
   AppstoreOutlined,
+  EditOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import './Materials.css';
 
 const { Title, Text } = Typography;
+const { TabPane } = Tabs;
 
 const Materials = () => {
   const { organizationID, role } = useOutletContext();
   const [materials, setMaterials] = useState([]);
+  const [activeMaterials, setActiveMaterials] = useState([]);
+  const [archivedMaterials, setArchivedMaterials] = useState([]);
   const [materialTypes, setMaterialTypes] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isTypeModalVisible, setIsTypeModalVisible] = useState(false);
@@ -45,6 +55,8 @@ const Materials = () => {
   const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState(null);
   const [viewMode, setViewMode] = useState('table');
+  const [editingMaterial, setEditingMaterial] = useState(null);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
   useEffect(() => {
     if (organizationID) {
@@ -84,7 +96,36 @@ const Materials = () => {
         id: doc.id,
         ...doc.data(),
       }));
-      setMaterials(materialsData);
+      // Check for materials that need to be archived
+      const archivePromises = [];
+      materialsData.forEach((material) => {
+        if (material.available === 0 && !material.movedToArchive) {
+          // Move material to archive
+          const materialDocRef = doc(
+            db,
+            `organizations/${organizationID}/materials`,
+            material.id
+          );
+          const updatePromise = updateDoc(materialDocRef, { movedToArchive: new Date() })
+            .then(() => {
+              material.movedToArchive = new Date();
+            })
+            .catch((error) => {
+              console.error('Error archiving material:', error);
+            });
+          archivePromises.push(updatePromise);
+        }
+      });
+
+      // Wait for all archive updates to complete
+      await Promise.all(archivePromises);
+
+      // Now separate materials into active and archived
+      const active = materialsData.filter((material) => !material.movedToArchive);
+      const archived = materialsData.filter((material) => material.movedToArchive);
+
+      setActiveMaterials(active);
+      setArchivedMaterials(archived);
     } catch (error) {
       message.error('Ошибка при загрузке сырья: ' + error.message);
     } finally {
@@ -109,12 +150,17 @@ const Materials = () => {
 
   const showModal = (type) => {
     setSelectedType(type);
+    setEditingMaterial(null);
+    form.resetFields();
     setIsModalVisible(true);
   };
 
   const handleCancel = () => {
     setIsModalVisible(false);
     setIsTypeModalVisible(false);
+    setIsEditModalVisible(false);
+    setEditingMaterial(null);
+    form.resetFields();
   };
 
   const handleAddMaterialType = async (values) => {
@@ -154,26 +200,71 @@ const Materials = () => {
     }
   };
 
+  const handleEditMaterial = (material) => {
+    setEditingMaterial(material);
+    form.setFieldsValue({
+      name: material.name,
+      total: material.total,
+    });
+    setIsEditModalVisible(true);
+  };
+
+  const handleUpdateMaterial = async (values) => {
+    try {
+      const materialDocRef = doc(
+        db,
+        `organizations/${organizationID}/materials`,
+        editingMaterial.id
+      );
+      const newTotal = values.total;
+      const used = editingMaterial.used || 0;
+      const newAvailable = newTotal - used;
+      await updateDoc(materialDocRef, {
+        ...values,
+        available: newAvailable >= 0 ? newAvailable : 0,
+      });
+      message.success('Сырье успешно обновлено!');
+      setIsEditModalVisible(false);
+      setEditingMaterial(null);
+      form.resetFields();
+      fetchMaterials();
+    } catch (error) {
+      message.error('Ошибка при обновлении сырья: ' + error.message);
+    }
+  };
+
+  const handleDeleteMaterial = (material) => {
+    Modal.confirm({
+      title: 'Вы уверены, что хотите удалить это сырье?',
+      okText: 'Да',
+      okType: 'danger',
+      cancelText: 'Нет',
+      onOk: async () => {
+        try {
+          await deleteDoc(
+            doc(db, `organizations/${organizationID}/materials`, material.id)
+          );
+          message.success('Сырье успешно удалено!');
+          fetchMaterials();
+        } catch (error) {
+          message.error('Ошибка при удалении сырья: ' + error.message);
+        }
+      },
+    });
+  };
+
   const columns = [
     {
       title: 'Сырье',
       dataIndex: 'name',
       key: 'name',
-      render: (name, record) => (
-        <span>
-          {name}{' '}
-          {record.available === 0 && (
-            <ExclamationCircleOutlined style={{ color: 'red', marginLeft: 8 }} />
-          )}
-        </span>
-      ),
     },
     {
       title: 'Дата добавления',
       dataIndex: 'dateAdded',
       key: 'dateAdded',
       render: (date) =>
-        date && date.seconds 
+        date && date.seconds
           ? new Date(date.seconds * 1000)
               .toLocaleDateString('ru-RU', {
                 day: '2-digit',
@@ -187,15 +278,14 @@ const Materials = () => {
       title: 'Итого (кг)',
       dataIndex: 'total',
       key: 'total',
-      render: (value) => value.toFixed(2),
+      render: (value) => value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
     },
     {
       title: 'Использовано (кг)',
       dataIndex: 'used',
       key: 'used',
-      render: (value) => value.toFixed(2),
+      render: (value) => value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
     },
-    
     {
       title: 'Доступно (кг)',
       dataIndex: 'available',
@@ -216,15 +306,79 @@ const Materials = () => {
               }}
             >
               <span style={{ color: '#595959' }}>
-                ● Использовано: {used.toFixed(2)} кг
+                ● Использовано: {used.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} кг
               </span>
               <span style={{ color: '#1677FF' }}>
-                Доступно: {available.toFixed(2)} кг
+                Доступно: {available.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} кг
               </span>
             </div>
           </div>
         );
       },
+    },
+    {
+      title: 'Действия',
+      key: 'actions',
+      render: (text, record) => (
+        <Space size="middle">
+          <Button icon={<EditOutlined />} onClick={() => handleEditMaterial(record)} />
+          <Button
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteMaterial(record)}
+            danger
+          />
+        </Space>
+      ),
+    },
+  ];
+
+  const archivedColumns = [
+    {
+      title: 'Сырье',
+      dataIndex: 'name',
+      key: 'name',
+    },
+    {
+      title: 'Дата добавления',
+      dataIndex: 'dateAdded',
+      key: 'dateAdded',
+      render: (date) =>
+        date && date.seconds
+          ? new Date(date.seconds * 1000)
+              .toLocaleDateString('ru-RU', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              })
+              .replace(' г.', '')
+          : 'Дата не указана',
+    },
+    {
+      title: 'Итого (кг)',
+      dataIndex: 'total',
+      key: 'total',
+      render: (value) => value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
+    },
+    {
+      title: 'Использовано (кг)',
+      dataIndex: 'used',
+      key: 'used',
+      render: (value) => value.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
+    },
+    {
+      title: 'Дата архивации',
+      dataIndex: 'movedToArchive',
+      key: 'movedToArchive',
+      render: (date) =>
+        date
+          ? new Date(
+              date.seconds ? date.seconds * 1000 : date
+            ).toLocaleDateString('ru-RU', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            })
+          : 'Дата не указана',
     },
   ];
 
@@ -234,17 +388,17 @@ const Materials = () => {
 
   // Calculate summary for each material type
   const getSummary = (typeName) => {
-    const filtered = materials.filter((m) => m.type === typeName);
+    const filtered = materials.filter((m) => m.type === typeName && !m.movedToArchive);
     const totalAdded = filtered.reduce((sum, m) => sum + m.total, 0);
     const totalAvailable = filtered.reduce((sum, m) => sum + m.available, 0);
     const totalUsed = filtered.reduce((sum, m) => sum + m.used, 0);
     return { totalAdded, totalAvailable, totalUsed };
   };
 
-  const renderCardView = () => {
+  const renderCardView = (materialsToRender) => {
     return (
       <div className="card-container">
-        {materials.map((material) => {
+        {materialsToRender.map((material) => {
           const usedPercent = material.total
             ? (material.used / material.total) * 100
             : 0;
@@ -267,15 +421,33 @@ const Materials = () => {
                 {material.type || 'Тип сырья не указан'}
               </Text>
               <div style={{ marginTop: 8, marginBottom: 8 }}>
-                <Text strong>Итого:</Text> {material.total.toLocaleString()} кг
+                <Text strong>Итого:</Text> {material.total.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} кг
               </div>
               <div style={{ marginBottom: 8 }}>
-                <Text strong>Использовано:</Text> {material.used.toLocaleString()} кг
+                <Text strong>Использовано:</Text> {material.used.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} кг
               </div>
               <div style={{ marginBottom: 8 }}>
-                <Text strong>Доступно:</Text> {material.available.toLocaleString()} кг
+                <Text strong>Доступно:</Text> {material.available.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} кг
               </div>
               <Progress percent={usedPercent} status="active" showInfo={false} />
+              {materialsToRender === activeMaterials && (
+                <div style={{ marginTop: 10 }}>
+                  <Button
+                    icon={<EditOutlined />}
+                    onClick={() => handleEditMaterial(material)}
+                    style={{ marginRight: 8 }}
+                  >
+                    Редактировать
+                  </Button>
+                  <Button
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleDeleteMaterial(material)}
+                    danger
+                  >
+                    Удалить
+                  </Button>
+                </div>
+              )}
             </Card>
           );
         })}
@@ -327,13 +499,13 @@ const Materials = () => {
               }}
             >
               <div style={{ marginBottom: 8 }}>
-                <Text strong>Итого:</Text> {summary.totalAdded.toLocaleString()} кг
+                <Text strong>Итого:</Text> {summary.totalAdded.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} кг
               </div>
               <div style={{ marginBottom: 8 }}>
-                <Text strong>Итого доступно:</Text> {summary.totalAvailable.toLocaleString()} кг
+                <Text strong>Итого доступно:</Text> {summary.totalAvailable.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} кг
               </div>
               <div>
-                <Text strong>Итого использовано:</Text> {summary.totalUsed.toLocaleString()} кг
+                <Text strong>Итого использовано:</Text> {summary.totalUsed.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} кг
               </div>
             </Card>
           );
@@ -368,39 +540,74 @@ const Materials = () => {
       >
         <Text type="secondary"> Склад</Text>
       </Divider>
-      <Title level={2}>Запасы сырья</Title>
+      <Title level={2}>Склад</Title>
+      <Tabs defaultActiveKey="1">
+        <TabPane tab="Запасы сырья" key="1">
+          {loading ? (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100%',
+              }}
+            >
+              <Spin size="large" />
+            </div>
+          ) : viewMode === 'table' ? (
+            <Table
+              dataSource={activeMaterials}
+              columns={columns}
+              rowKey="id"
+              loading={loading}
+            />
+          ) : (
+            renderCardView(activeMaterials)
+          )}
+        </TabPane>
+        <TabPane tab="Архив" key="2">
+          {loading ? (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100%',
+              }}
+            >
+              <Spin size="large" />
+            </div>
+          ) : viewMode === 'table' ? (
+            <Table
+              dataSource={archivedMaterials}
+              columns={archivedColumns}
+              rowKey="id"
+              loading={loading}
+            />
+          ) : (
+            renderCardView(archivedMaterials)
+          )}
+        </TabPane>
+      </Tabs>
 
-      {loading ? (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            height: '100%',
-          }}
-        >
-          <Spin size="large" />
-        </div>
-      ) : viewMode === 'table' ? (
-        <Table
-          dataSource={materials}
-          columns={columns}
-          rowKey="id"
-          loading={loading}
-        />
-      ) : (
-        renderCardView()
-      )}
-
+      {/* Add/Edit Material Modal */}
       <Modal
-        title={`Добавить ${selectedType ? selectedType.name : ''}`}
-        visible={isModalVisible}
+        title={
+          editingMaterial
+            ? 'Редактировать сырье'
+            : `Добавить ${selectedType ? selectedType.name : ''}`
+        }
+        visible={isModalVisible || isEditModalVisible}
         onCancel={handleCancel}
         onOk={form.submit}
-        okText="Добавить"
+        okText={editingMaterial ? 'Сохранить' : 'Добавить'}
         cancelText="Отмена"
       >
-        <Form form={form} layout="vertical" onFinish={handleAddMaterial}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={editingMaterial ? handleUpdateMaterial : handleAddMaterial}
+        >
           <Form.Item
             name="name"
             label="Название сырья"
@@ -445,6 +652,11 @@ const Materials = () => {
               50 кг
             </Button>
           </div>
+          {editingMaterial && (
+            <Form.Item label="Тип сырья">
+              <Input value={editingMaterial.type} disabled />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 

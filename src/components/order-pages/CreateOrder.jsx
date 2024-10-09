@@ -1,3 +1,5 @@
+// CreateOrder.jsx
+
 import React, { useState, useEffect } from 'react';
 import {
   Form,
@@ -12,6 +14,7 @@ import {
   Select,
   Spin,
   Cascader,
+  Divider,
 } from 'antd';
 import dayjs from 'dayjs';
 import {
@@ -25,6 +28,7 @@ import {
   limit,
   updateDoc,
   where,
+  runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from '../login-signUp/firebase';
 
@@ -75,43 +79,48 @@ const CreateOrder = () => {
     const fetchCustomersAndProducts = async (orgID) => {
       setLoadingCustomers(true);
 
-      // Fetch categories
-      const categoriesSnapshot = await getDocs(
-        collection(db, `organizations/${orgID}/product-categories`)
-      );
-      const categoriesData = categoriesSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setCategories(categoriesData);
-
-      // Fetch products
-      const productsSnapshot = await getDocs(
-        collection(db, `organizations/${orgID}/products`)
-      );
-      const productsData = productsSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setProducts(productsData);
-
-      // Fetch customers
-      const customersSnapshot = await getDocs(
-        collection(db, `organizations/${orgID}/customers`)
-      );
-      const customersData = customersSnapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
+      try {
+        // Fetch categories
+        const categoriesSnapshot = await getDocs(
+          collection(db, `organizations/${orgID}/product-categories`)
+        );
+        const categoriesData = categoriesSnapshot.docs.map((doc) => ({
           id: doc.id,
-          ...data,
-          productWeight: data.productWeight || 5, // Assign default value if missing
-          paperUsageRate: data.paperUsageRate || 222, // Assign default value if missing
-        };
-      });
-      setCustomers(customersData);
+          ...doc.data(),
+        }));
+        setCategories(categoriesData);
 
-      setLoadingCustomers(false);
-      await generateOrderNumber();
+        // Fetch products
+        const productsSnapshot = await getDocs(
+          collection(db, `organizations/${orgID}/products`)
+        );
+        const productsData = productsSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setProducts(productsData);
+
+        // Fetch customers
+        const customersSnapshot = await getDocs(
+          collection(db, `organizations/${orgID}/customers`)
+        );
+        const customersData = customersSnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            productWeight: data.productWeight || 5, // Assign default value if missing
+            paperUsageRate: data.paperUsageRate || 222, // Assign default value if missing
+          };
+        });
+        setCustomers(customersData);
+      } catch (error) {
+        console.error("Ошибка при загрузке данных:", error);
+        message.error('Ошибка при загрузке данных');
+      } finally {
+        setLoadingCustomers(false);
+        await generateOrderNumber();
+      }
     };
 
     fetchUserData();
@@ -146,7 +155,7 @@ const CreateOrder = () => {
     setOrderNumber(`${year}${month}${randomChars}${formattedSequence}`);
   };
 
-  const onValuesChange = (_, allValues) => {
+  const onValuesChange = async (_, allValues) => {
     const selectedCustomer = customers.find(
       (customer) => customer.brand === allValues.client
     );
@@ -197,8 +206,29 @@ const CreateOrder = () => {
             productWeight: selectedCustomer.productWeight,
           });
         } else {
-          setShowProductWeightInput(true);
-          setProductWeight(allValues.productWeight);
+          // Check if a standard roll exists for the newly selected product
+          const standardRollsRef = collection(
+            db,
+            `organizations/${organizationID}/standard-rolls`
+          );
+          const standardRollsQuery = query(
+            standardRollsRef,
+            where('product.categoryId', '==', currentProductIds[0]),
+            where('product.productId', '==', currentProductIds[1])
+          );
+          const standardRollsSnapshot = await getDocs(standardRollsQuery);
+          const hasStandardRoll = !standardRollsSnapshot.empty;
+
+          if (hasStandardRoll) {
+            setShowProductWeightInput(true);
+            setProductWeight(null); // Reset productWeight
+            form.setFieldsValue({
+              productWeight: null,
+            });
+          } else {
+            setShowProductWeightInput(false);
+            setProductWeight(null);
+          }
         }
       } else {
         setShowProductWeightInput(false);
@@ -251,219 +281,206 @@ const CreateOrder = () => {
         }
       }
 
-      // Calculate total material required in kg
-      const totalMaterialRequired =
-        (values.quantity * productWeightValue) / 1000; // Convert to kg
-
-      // Update Material Usage
-      const materialsRef = collection(
-        db,
-        `organizations/${organizationID}/materials`
-      );
-
-      // Use selectedProduct.material to match the material's 'type'
-      const materialQuery = query(
-        materialsRef,
-        where('type', '==', selectedProduct.material)
-      );
-      const materialSnapshot = await getDocs(materialQuery);
-
-      if (materialSnapshot.empty) {
-        throw new Error(`Материал "${selectedProduct.material}" не найден.`);
-      }
-
-      const materialsData = materialSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      // Sort materials by dateRegistered (oldest first)
-      materialsData.forEach((material) => {
-        if (material.dateRegistered && material.dateRegistered.toDate) {
-          material.dateRegistered = material.dateRegistered.toDate();
-        } else {
-          material.dateRegistered = new Date(0);
-        }
-      });
-
-      materialsData.sort((a, b) => a.dateRegistered - b.dateRegistered);
-
-      // Calculate total available material
-      const totalAvailableMaterial = materialsData.reduce(
-        (total, material) => total + (material.available || 0),
-        0
-      );
-
-      if (totalAvailableMaterial < totalMaterialRequired) {
-        const maxPossibleQuantity = Math.floor(
-          (totalAvailableMaterial * 1000) / productWeightValue
-        );
-        throw new Error(
-          `Недостаточно материала "${selectedProduct.material}". Максимально возможное количество: ${maxPossibleQuantity}.`
-        );
-      }
-
-      let remainingMaterialRequired = totalMaterialRequired;
-      const materialUpdates = [];
-
-      for (const material of materialsData) {
-        if (remainingMaterialRequired <= 0) break;
-
-        const materialAvailable = material.available || 0;
-        const materialToUse = Math.min(
-          materialAvailable,
-          remainingMaterialRequired
-        );
-
-        const updatedAvailable = materialAvailable - materialToUse;
-        const updatedUsed = (material.used || 0) + materialToUse;
-
-        materialUpdates.push({
-          id: material.id,
-          updatedData: {
-            available: updatedAvailable,
-            used: updatedUsed,
-          },
-        });
-
-        remainingMaterialRequired -= materialToUse;
-      }
-
-      const materialUpdatePromises = materialUpdates.map((update) => {
-        const materialDocRef = doc(
+      await runTransaction(db, async (transaction) => {
+        // Material Usage Logic
+        const materialsRef = collection(
           db,
-          `organizations/${organizationID}/materials`,
-          update.id
+          `organizations/${organizationID}/materials`
         );
-        return updateDoc(materialDocRef, update.updatedData);
-      });
 
-      await Promise.all(materialUpdatePromises);
-
-      // Paper Usage Logic
-      if (selectedCustomer.usesStandardPaper) {
-        // Customer uses standard paper (standard label customer)
-        // Fetch the standard roll(s) matching the product
-        const standardRollsRef = collection(
-          db,
-          `organizations/${organizationID}/standard-rolls`
+        const materialQuery = query(
+          materialsRef,
+          where('type', '==', selectedProduct.material)
         );
-        const standardRollsQuery = query(
-          standardRollsRef,
-          where('product.categoryId', '==', selectedProduct.categoryId),
-          where('product.productId', '==', selectedProduct.id)
-        );
-        const standardRollsSnapshot = await getDocs(standardRollsQuery);
+        const materialSnapshot = await getDocs(materialQuery);
 
-        if (standardRollsSnapshot.empty) {
-          throw new Error('Нет стандартного рулона для данного продукта.');
+        if (materialSnapshot.empty) {
+          throw new Error(`Материал "${selectedProduct.material}" не найден.`);
         }
 
-        const standardRollsData = standardRollsSnapshot.docs.map((doc) => ({
+        const materialsData = materialSnapshot.docs.map((doc) => ({
           id: doc.id,
+          ref: doc.ref,
           ...doc.data(),
         }));
 
-        // Use the first matching standard roll
-        const standardRoll = standardRollsData[0];
-
-        // Ensure usageRate is available
-        if (!standardRoll.usageRate) {
-          throw new Error(
-            'Отсутствует поле usageRate в стандартном рулоне.'
-          );
-        }
-
-        // Calculate paper usage based on usageRate
-        const usageRate = standardRoll.usageRate; // in grams per 1,000 units
-        const quantityInThousands = values.quantity / 1000;
-        const totalPaperRequired = (quantityInThousands * usageRate) / 1000; // Convert to kg
-
-        if (standardRoll.remaining < totalPaperRequired) {
-          throw new Error('Недостаточно стандартной бумаги на складе.');
-        }
-
-        // Update standard roll usage
-        const updatedUsed = (standardRoll.used || 0) + totalPaperRequired;
-        const updatedRemaining =
-          (standardRoll.remaining || 0) - totalPaperRequired;
-
-        const standardRollDocRef = doc(
-          db,
-          `organizations/${organizationID}/standard-rolls`,
-          standardRoll.id
-        );
-        await updateDoc(standardRollDocRef, {
-          used: updatedUsed,
-          remaining: updatedRemaining,
+        // Sort materials by dateRegistered (oldest first)
+        materialsData.forEach((material) => {
+          if (material.dateRegistered && material.dateRegistered.toDate) {
+            material.dateRegistered = material.dateRegistered.toDate();
+          } else {
+            material.dateRegistered = new Date(0);
+          }
         });
-      } else {
-        // Customer uses custom paper (custom label customer)
-        const quantityInThousands = values.quantity / 1000;
-        const paperUsageRate = selectedCustomer.paperUsageRate || 222; // grams per 1,000 units
 
-        const totalPaperRequired = (quantityInThousands * paperUsageRate) / 1000; // Convert to kg
+        materialsData.sort((a, b) => a.dateRegistered - b.dateRegistered);
 
-        if (selectedCustomer.paper.available < totalPaperRequired) {
-          const availablePaperGrams = selectedCustomer.paper.available * 1000;
-          const maxThousandUnitsPaper = Math.floor(
-            availablePaperGrams / paperUsageRate
+        // Calculate total available material
+        const totalAvailableMaterial = materialsData.reduce(
+          (total, material) => total + (material.available || 0),
+          0
+        );
+
+        const totalMaterialRequired =
+          (values.quantity * productWeightValue) / 1000; // Convert to kg
+
+        if (totalAvailableMaterial < totalMaterialRequired) {
+          const maxPossibleQuantity = Math.floor(
+            (totalAvailableMaterial * 1000) / productWeightValue
           );
-          const maxPossibleQuantityPaper = maxThousandUnitsPaper * 1000;
-
           throw new Error(
-            `Недостаточно бумаги. Максимально возможное количество: ${maxPossibleQuantityPaper}.`
+            `Недостаточно материала "${selectedProduct.material}". Максимально возможное количество: ${maxPossibleQuantity}.`
           );
         }
 
-        const updatedAvailablePaper =
-          selectedCustomer.paper.available - totalPaperRequired;
-        const updatedUsedPaper =
-          (selectedCustomer.paper.used || 0) + totalPaperRequired;
+        let remainingMaterialRequired = totalMaterialRequired;
+        const materialUpdates = [];
 
-        const customerDocRef = doc(
-          db,
-          `organizations/${organizationID}/customers`,
-          selectedCustomer.id
-        );
-        await updateDoc(customerDocRef, {
-          'paper.available': updatedAvailablePaper,
-          'paper.used': updatedUsedPaper,
+        for (const material of materialsData) {
+          if (remainingMaterialRequired <= 0) break;
+
+          const materialAvailable = material.available || 0;
+          const materialToUse = Math.min(
+            materialAvailable,
+            remainingMaterialRequired
+          );
+
+          const updatedAvailable = materialAvailable - materialToUse;
+          const updatedUsed = (material.used || 0) + materialToUse;
+
+          materialUpdates.push({
+            ref: material.ref,
+            updatedData: {
+              available: updatedAvailable,
+              used: updatedUsed,
+            },
+          });
+
+          remainingMaterialRequired -= materialToUse;
+        }
+
+        // Update materials
+        materialUpdates.forEach((update) => {
+          transaction.update(update.ref, update.updatedData);
         });
-      }
 
-      // Save the order data
-      const selectedCategory = categories.find(
-        (cat) => cat.id === values.product[0]
-      );
+        // Paper Usage Logic
+        if (selectedCustomer.usesStandardPaper) {
+          // Customer uses standard paper (standard label customer)
+          const standardRollsRef = collection(
+            db,
+            `organizations/${organizationID}/standard-rolls`
+          );
+          const standardRollsQuery = query(
+            standardRollsRef,
+            where('product.categoryId', '==', selectedProduct.categoryId),
+            where('product.productId', '==', selectedProduct.id)
+          );
+          const standardRollsSnapshot = await getDocs(standardRollsQuery);
 
-      const orderData = {
-        ...values,
-        date: values.date ? values.date.toDate() : new Date(),
-        total,
-        email: auth.currentUser.email,
-        orderNumber,
-        orderID: orderId,
-        client: {
-          id: selectedCustomer?.id || '',
-          brand: selectedCustomer?.brand || '',
-          companyName: selectedCustomer?.companyName || '',
-        },
-        product: {
-          categoryId: values.product ? values.product[0] : '',
-          productId: values.product ? values.product[1] : '',
-          categoryName: selectedCategory?.name || '',
-          productTitle: selectedProduct?.title || '',
-        },
-        productWeight: productWeightValue, // Include productWeight in order data
-      };
+          if (standardRollsSnapshot.empty) {
+            throw new Error('Нет стандартного рулона для данного продукта.');
+          }
 
-      await setDoc(
-        doc(db, `organizations/${organizationID}/orders`, orderId),
-        orderData
-      );
+          const standardRollDoc = standardRollsSnapshot.docs[0];
+          const standardRoll = {
+            id: standardRollDoc.id,
+            ref: standardRollDoc.ref,
+            ...standardRollDoc.data(),
+          };
 
-      // Show success message
+          if (!standardRoll.usageRates) {
+            throw new Error(
+              'Отсутствует поле usageRates в стандартном рулоне.'
+            );
+          }
+
+          const usageRate = standardRoll.usageRates[productWeightValue]; // in grams per 1,000 units
+
+          if (!usageRate) {
+            throw new Error(
+              `Отсутствует расход бумаги для веса ${productWeightValue} гр в стандартном рулоне.`
+            );
+          }
+
+          const quantityInThousands = values.quantity / 1000;
+          const totalPaperRequired = (quantityInThousands * usageRate) / 1000; // Convert to kg
+
+          if (standardRoll.remaining < totalPaperRequired) {
+            throw new Error('Недостаточно стандартной бумаги на складе.');
+          }
+
+          // Update standard roll usage
+          const updatedUsed = (standardRoll.used || 0) + totalPaperRequired;
+          const updatedRemaining =
+            (standardRoll.remaining || 0) - totalPaperRequired;
+
+          transaction.update(standardRoll.ref, {
+            used: updatedUsed,
+            remaining: updatedRemaining,
+          });
+        } else {
+          // Customer uses custom paper (custom label customer)
+          const quantityInThousands = values.quantity / 1000;
+          const paperUsageRate = selectedCustomer.paperUsageRate || 222; // grams per 1,000 units
+
+          const totalPaperRequired = (quantityInThousands * paperUsageRate) / 1000; // Convert to kg
+
+          if (selectedCustomer.paper.available < totalPaperRequired) {
+            const availablePaperGrams = selectedCustomer.paper.available * 1000;
+            const maxThousandUnitsPaper = Math.floor(
+              availablePaperGrams / paperUsageRate
+            );
+            const maxPossibleQuantityPaper = maxThousandUnitsPaper * 1000;
+
+            throw new Error(
+              `Недостаточно бумаги. Максимально возможное количество: ${maxPossibleQuantityPaper}.`
+            );
+          }
+
+          const customerDocRef = doc(
+            db,
+            `organizations/${organizationID}/customers`,
+            selectedCustomer.id
+          );
+
+          transaction.update(customerDocRef, {
+            'paper.available': selectedCustomer.paper.available - totalPaperRequired,
+            'paper.used': (selectedCustomer.paper.used || 0) + totalPaperRequired,
+          });
+        }
+
+        // Save the order data
+        const selectedCategory = categories.find(
+          (cat) => cat.id === values.product[0]
+        );
+
+        const orderData = {
+          ...values,
+          date: values.date ? values.date.toDate() : new Date(),
+          total,
+          email: auth.currentUser.email,
+          orderNumber,
+          orderID: orderId,
+          client: {
+            id: selectedCustomer?.id || '',
+            brand: selectedCustomer?.brand || '',
+            companyName: selectedCustomer?.companyName || '',
+          },
+          product: {
+            categoryId: values.product ? values.product[0] : '',
+            productId: values.product ? values.product[1] : '',
+            categoryName: selectedCategory?.name || '',
+            productTitle: selectedProduct?.title || '',
+          },
+          productWeight: productWeightValue, // Include productWeight in order data
+        };
+
+        const orderDocRef = doc(db, `organizations/${organizationID}/orders`, orderId);
+        transaction.set(orderDocRef, orderData);
+      });
+
+      // If transaction succeeds
       messageApi.open({
         type: 'success',
         content: 'Заказ успешно добавлен!',
@@ -562,7 +579,7 @@ const CreateOrder = () => {
                   showSearch
                   optionFilterProp="label"
                   filterOption={(input, option) =>
-                    option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                    option.label.toLowerCase().includes(input.toLowerCase())
                   }
                   options={
                     customers.length > 0
@@ -603,6 +620,13 @@ const CreateOrder = () => {
                 />
               </Form.Item>
             </div>
+            {/* Display Gramage Information */}
+            {selectedCustomer && selectedProduct && (
+              <Text type="secondary" style={{ fontSize: '12px', color: '#8c8c8c' }}>
+                Граммаж сырья для данного клиента: {selectedCustomer.productWeight} гр {selectedProduct.material || ''}
+              </Text>
+            )}
+            {/* Conditional Product Weight Input */}
             {showProductWeightInput && (
               <Form.Item
                 name="productWeight"
@@ -642,9 +666,9 @@ const CreateOrder = () => {
                   min={1}
                   style={{ width: '100%' }}
                   formatter={(value) =>
-                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
                   }
-                  parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+                  parser={(value) => value.replace(/\s/g, '')}
                 />
               </Form.Item>
               <Form.Item
@@ -658,9 +682,9 @@ const CreateOrder = () => {
                   min={0}
                   style={{ width: '100%' }}
                   formatter={(value) =>
-                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
                   }
-                  parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+                  parser={(value) => value.replace(/\s/g, '')}
                 />
               </Form.Item>
               <Form.Item
@@ -677,6 +701,9 @@ const CreateOrder = () => {
                 </Radio.Group>
               </Form.Item>
             </div>
+            {/* Divider */}
+            <Divider />
+            {/* Order Preview Section */}
             <div className="order-preview">
               <div className="order-summary">
                 <div>
@@ -698,7 +725,7 @@ const CreateOrder = () => {
                 </div>
                 <div>
                   <Text strong>Количество:</Text>{' '}
-                  {(orderPreview.quantity || 0).toLocaleString()} шт
+                  {(orderPreview.quantity || 0).toLocaleString('ru-RU').replace(/,/g, ' ')} шт
                   <Text type="secondary" style={{ marginLeft: 8 }}>
                     (
                     {formatQuantityInKg(
@@ -710,14 +737,16 @@ const CreateOrder = () => {
                 </div>
                 <div>
                   <Text strong>Цена:</Text>{' '}
-                  {(orderPreview.price || 0).toLocaleString()} сум
+                  {(orderPreview.price || 0).toLocaleString('ru-RU').replace(/,/g, ' ')} сум
                 </div>
                 <div className="order-total">
                   <Text strong>Итого:</Text>{' '}
                   {(
                     (orderPreview.quantity || 0) *
                     (orderPreview.price || 0)
-                  ).toLocaleString()}{' '}
+                  )
+                    .toLocaleString('ru-RU')
+                    .replace(/,/g, ' ')}{' '}
                   сум
                 </div>
               </div>
@@ -730,7 +759,19 @@ const CreateOrder = () => {
                 gap: '10px',
               }}
             >
-              <Button type="default">Отмена</Button>
+              <Button
+                type="default"
+                onClick={() => {
+                  form.resetFields();
+                  setOrderPreview({ client: '', product: [], quantity: 1, price: 0 });
+                  setSelectedProduct(null);
+                  setSelectedCustomer(null);
+                  setProductWeight(null);
+                  setShowProductWeightInput(false);
+                }}
+              >
+                Отмена
+              </Button>
               <Button type="primary" htmlType="submit">
                 Добавить новый заказ
               </Button>
