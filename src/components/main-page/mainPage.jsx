@@ -22,8 +22,6 @@ import {
   LogoutOutlined,
   UserOutlined,
   OrderedListOutlined,
-  MenuUnfoldOutlined,
-  MenuFoldOutlined,
   TeamOutlined,
   AppstoreAddOutlined,
   FormOutlined,
@@ -45,7 +43,6 @@ const MainPage = () => {
   const [organizationName, setOrganizationName] = useState('');
   const [organizationID, setOrganizationID] = useState('');
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
@@ -305,9 +302,9 @@ const MainPage = () => {
           <Menu theme="dark" mode="inline" items={menuItems} />
         </Drawer>
       ) : (
-        <Sider trigger={null} collapsible collapsed={collapsed}>
+        <Sider trigger={null} collapsible collapsed={false}>
           <div className="whiteray-logo">
-            {collapsed ? '..' : organizationName || 'Loading...'}
+            {organizationName || 'Loading...'}
           </div>
           <Menu theme="dark" mode="inline" defaultSelectedKeys={['1']} items={menuItems} />
         </Sider>
@@ -322,16 +319,17 @@ const MainPage = () => {
             alignItems: 'center',
           }}
         >
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{
-              fontSize: '16px',
-              width: 64,
-              height: 64,
-            }}
-          />
+          {isMobile && (
+            <Button
+              type="text"
+              icon={<MenuOutlined />}
+              onClick={() => setDrawerVisible(true)}
+              style={{
+                fontSize: '16px',
+                marginLeft: 16,
+              }}
+            />
+          )}
           {!isMobile && alertMessages.length > 0 && (
             <Alert
               message={
@@ -351,7 +349,7 @@ const MainPage = () => {
               style={{ maxWidth: '60%', margin: '0 16px', flexShrink: 0 }}
             />
           )}
-          <div style={{lineHeight: "10px"}} className="userdata">
+          <div className="userdata">
             <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
             <Space direction="vertical" size={0} className="user-info">
               <Text className="user-name" strong>{userDetails?.fullName}</Text>

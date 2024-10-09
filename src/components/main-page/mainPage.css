@@ -25,13 +25,11 @@
 
 .user-avatar {
   margin-right: 12px;
-  flex-shrink: 0;
 }
 
 .user-info {
   display: flex;
   flex-direction: column;
-  margin-left: 10px;
 }
 
 .user-name {
@@ -46,20 +44,9 @@
 
 /* Alert Styling */
 .ant-alert {
-  margin: 0 auto 8px auto;
+  margin: 0 auto;
   padding: 0 16px;
-  box-sizing: border-box;
   max-width: 60%;
-  flex-shrink: 0;
-}
-
-/* Fix Alert affecting Avatar */
-header.ant-layout-header {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 16px;
 }
 
 /* Drawer Menu Styling */
@@ -67,22 +54,6 @@ header.ant-layout-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-/* Modal List Styling */
-.modal-list {
-  list-style: none;
-  padding: 0;
-}
-
-.modal-list li {
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-/* Sidebar Alert Icon Styling */
-.menu-item-alert {
-  color: #ff4d4f;
 }
 
 /* Responsive Adjustments */
@@ -105,20 +76,4 @@ header.ant-layout-header {
   .user-role {
     font-size: 12px;
   }
-}
-
-/* Fix content overflow */
-.ant-layout-content {
-  overflow: auto;
-}
-
-/* Detailed Alert Modal Styling */
-.modal-list {
-  list-style: none;
-  padding: 0;
-}
-
-.modal-list li {
-  margin-bottom: 8px;
-  font-size: 14px;
 }
