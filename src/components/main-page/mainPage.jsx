@@ -1,10 +1,22 @@
 // src/components/MainPage.jsx
-
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Typography, Avatar, Space, Button, Spin, notification, theme, Drawer, Modal } from 'antd';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import {
+  Layout,
+  Menu,
+  Typography,
+  Avatar,
+  Space,
+  Button,
+  Spin,
+  notification,
+  theme,
+  Drawer,
+  Modal,
+  Alert,
+} from 'antd';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../login-signUp/firebase';
-import { getDoc, doc, collection, getDocs } from "firebase/firestore";
+import { getDoc, doc, collection, getDocs, onSnapshot } from "firebase/firestore";
 import {
   DashboardOutlined,
   LogoutOutlined,
@@ -18,29 +30,45 @@ import {
   MenuOutlined,
   CloseOutlined,
   CodeSandboxOutlined,
-  GroupOutlined, 
+  GroupOutlined,
+  ExclamationCircleFilled,
 } from '@ant-design/icons';
 import './mainPage.css';
 
 const { Header, Sider, Content } = Layout;
-const { Text } = Typography;
+const { Title, Text } = Typography;
 
 const MainPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [userDetails, setUserDetails] = useState(null);
   const [organizationName, setOrganizationName] = useState('');
   const [organizationID, setOrganizationID] = useState('');
-  const [loading, setLoading] = useState(true); // Состояние загрузки данных пользователя
+  const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [alertMessages, setAlertMessages] = useState([]);
+  const [detailedAlertData, setDetailedAlertData] = useState({
+    customers: [],
+    standardRolls: [],
+  });
+  const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
 
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  // Устанавливаем слушатель состояния аутентификации
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth < 768);
+    }
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
@@ -50,28 +78,17 @@ const MainPage = () => {
         navigate("/error");
       }
     });
-    return () => unsubscribe(); // Очистка слушателя при размонтировании компонента
+    return () => unsubscribe();
   }, []);
 
-  // Обработка изменения размера окна для адаптивного дизайна
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Функция для получения данных пользователя
   const fetchUserData = async (userUid) => {
     try {
-      // Проверка, является ли пользователь владельцем (owner)
       const ownerDocRef = doc(db, "owner-users", userUid);
       const ownerDocSnap = await getDoc(ownerDocRef);
 
       if (ownerDocSnap.exists()) {
         const userData = ownerDocSnap.data();
-        userData.role = 'owner'; // Устанавливаем роль как owner
+        userData.role = 'owner';
         setUserDetails(userData);
 
         if (userData.organizationID) {
@@ -80,14 +97,10 @@ const MainPage = () => {
           const organizationDocSnap = await getDoc(organizationDocRef);
           if (organizationDocSnap.exists()) {
             setOrganizationName(organizationDocSnap.data().name);
-          } else {
-            console.log("No such organization!");
           }
-        } else {
-          console.error("No organizationID found for owner user");
+          setupAlertListeners(userData.organizationID);
         }
       } else {
-        // Если пользователь не является владельцем, проверяем его членство в организациях
         const organizationsRef = collection(db, "organizations");
         const orgsSnapshot = await getDocs(organizationsRef);
 
@@ -100,18 +113,19 @@ const MainPage = () => {
 
           if (memberDocSnap.exists()) {
             const memberData = memberDocSnap.data();
-            memberData.role = 'member'; // Устанавливаем роль как member
+            memberData.role = 'member';
             setUserDetails(memberData);
-            setOrganizationID(orgID); // Устанавливаем ID организации, где пользователь является членом
+            setOrganizationID(orgID);
             setOrganizationName(orgDoc.data().name);
             isMember = true;
-            break; // Прерываем цикл, если пользователь найден в одной из организаций
+            setupAlertListeners(orgID);
+            break;
           }
         }
 
         if (!isMember) {
           console.error("User not found in owner-users or any organization's members");
-          navigate("/error"); // Перенаправляем на страницу ошибки, если пользователь не найден
+          navigate("/error");
         }
       }
     } catch (error) {
@@ -121,10 +135,54 @@ const MainPage = () => {
         description: 'Не удалось загрузить данные пользователя.',
       });
     }
-    setLoading(false); // Останавливаем спиннер после завершения загрузки
+    setLoading(false);
   };
 
-  // Функция выхода из аккаунта
+  const setupAlertListeners = (orgID) => {
+    const customersRef = collection(db, `organizations/${orgID}/customers`);
+    const unsubscribeCustomers = onSnapshot(customersRef, (snapshot) => {
+      const customersData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      const customersWithZeroPaper = customersData.filter(customer => customer.paper?.available === 0);
+      
+      const standardRollsRef = collection(db, `organizations/${orgID}/standard-rolls`);
+      const unsubscribeStandardRolls = onSnapshot(standardRollsRef, (rollSnapshot) => {
+        const standardRollsData = rollSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        const rollsWithZeroAvailable = standardRollsData.filter(roll => roll.available === 0);
+
+        if (customersWithZeroPaper.length > 0 || rollsWithZeroAvailable.length > 0) {
+          const customerMessages = customersWithZeroPaper.map(customer => `Отсутствует бумага для клиента "${customer.brand}"`);
+          const rollMessages = rollsWithZeroAvailable.map(roll => `Рулон бумаги (стандарт дизайн) для "${roll.product.categoryName} → ${roll.product.productTitle}" отсутствует`);
+          setAlertMessages([...customerMessages, ...rollMessages]);
+
+          setDetailedAlertData({
+            customers: customersWithZeroPaper,
+            standardRolls: rollsWithZeroAvailable,
+          });
+        } else {
+          setAlertMessages([]);
+          setDetailedAlertData({
+            customers: [],
+            standardRolls: [],
+          });
+        }
+      });
+
+      return () => {
+        unsubscribeStandardRolls();
+      };
+    });
+
+    return () => {
+      unsubscribeCustomers();
+    };
+  };
+
   const handleLogout = () => {
     auth.signOut().then(() => {
       navigate('/login');
@@ -149,7 +207,14 @@ const MainPage = () => {
     setLogoutModalVisible(false);
   };
 
-  // Определение пунктов меню
+  const showDetailModal = () => {
+    setIsDetailModalVisible(true);
+  };
+
+  const hideDetailModal = () => {
+    setIsDetailModalVisible(false);
+  };
+
   const menuItems = [
     {
       key: '1',
@@ -180,7 +245,7 @@ const MainPage = () => {
     },
     {
       key: '6',
-      icon: <UserOutlined />,
+      icon: alertMessages.some(msg => msg.includes('бумага для клиента')) ? <ExclamationCircleFilled style={{color: "#ff4d4f"}} /> : <UserOutlined />,
       label: <Link to="/mainpage/customers" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Клиенты</Link>,
     },
     {
@@ -190,21 +255,20 @@ const MainPage = () => {
     },
     {
       key: '8',
-      icon: <GroupOutlined/>,
+      icon: <GroupOutlined />,
       label: <Link to="/mainpage/manage-paper" state={organizationID ? { organizationID } : {}} onClick={() => setDrawerVisible(false)}>Бумаги</Link>,
     },
     {
       key: '9',
-      icon: <LogoutOutlined style={{ color: '#f5222d' }} />, // Красный цвет иконки выхода
+      icon: <LogoutOutlined style={{ color: '#f5222d' }} />,
       label: (
-        <Button type="link" onClick={showLogoutModal} style={{color: "#d9d9d9",  paddingLeft: 0,  }}> {/* Добавлен отступ для разрыва */}
+        <Button type="link" onClick={showLogoutModal} style={{ color: "#d9d9d9", paddingLeft: 0 }}>
           Выйти
         </Button>
       ),
     },
   ];
 
-  // Если данные пользователя загружаются, показываем спиннер
   if (loading) {
     return (
       <Layout style={{ minHeight: '100vh' }}>
@@ -254,40 +318,45 @@ const MainPage = () => {
             padding: 0,
             background: colorBgContainer,
             display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
           }}
         >
-          {isMobile ? (
-            <Button
-              type="text"
-              icon={<MenuOutlined />}
-              onClick={() => setDrawerVisible(true)}
-              style={{
-                fontSize: '16px',
-                width: 64,
-                height: 64,
-              }}
-            />
-          ) : (
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{
-                fontSize: '16px',
-                width: 64,
-                height: 64,
-              }}
+          <Button
+            type="text"
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => setCollapsed(!collapsed)}
+            style={{
+              fontSize: '16px',
+              width: 64,
+              height: 64,
+            }}
+          />
+          {!isMobile && alertMessages.length > 0 && (
+            <Alert
+              message={
+                alertMessages.length > 1
+                  ? (
+                    <span>
+                      Отсутствует бумага для некоторых клиентов и/или рулонов.{' '}
+                      <Button type="link" onClick={showDetailModal}>
+                        Подробно
+                      </Button>
+                    </span>
+                  )
+                  : alertMessages[0]
+              }
+              type="warning"
+              showIcon
+              style={{ maxWidth: '60%', margin: '0 16px', flexShrink: 0 }}
             />
           )}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
-            <div className="userdata" style={{ display: 'flex', alignItems: 'center' }}>
-              <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
-              <Space direction="vertical" size={0} className="user-info" style={{ marginLeft: '10px' }}>
-                <Text className="user-name" strong>{userDetails?.fullName}</Text>
-                <Text className="user-role">{userDetails?.role === 'owner' ? 'Администратор' : 'Сотрудник'}</Text>
-              </Space>
-            </div>
+          <div style={{lineHeight: "10px"}} className="userdata">
+            <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
+            <Space direction="vertical" size={0} className="user-info">
+              <Text className="user-name" strong>{userDetails?.fullName}</Text>
+              <Text className="user-role">{userDetails?.role === 'owner' ? 'Администратор' : 'Сотрудник'}</Text>
+            </Space>
           </div>
         </Header>
         <Content
@@ -302,7 +371,6 @@ const MainPage = () => {
           <Outlet context={{ organizationID, role: userDetails?.role, userDetails }} />
         </Content>
       </Layout>
-      {/* Модальное окно подтверждения выхода */}
       <Modal
         title="Подтвердите выход"
         visible={logoutModalVisible}
@@ -312,6 +380,41 @@ const MainPage = () => {
         cancelText="Отмена"
       >
         <Text>Вы уверены, что хотите выйти?</Text>
+      </Modal>
+      <Modal
+        title="Детали оповещений"
+        visible={isDetailModalVisible}
+        onCancel={hideDetailModal}
+        footer={[
+          <Button key="close" onClick={hideDetailModal}>
+            Закрыть
+          </Button>,
+        ]}
+      >
+        {detailedAlertData.customers.length > 0 && (
+          <div>
+            <Title level={5}>Клиенты без бумаги:</Title>
+            <ul className="modal-list">
+              {detailedAlertData.customers.map(customer => (
+                <li key={customer.id}>
+                  {customer.brand}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {detailedAlertData.standardRolls.length > 0 && (
+          <div>
+            <Title level={5}>Стандартные рулоны без доступного количества:</Title>
+            <ul className="modal-list">
+              {detailedAlertData.standardRolls.map(roll => (
+                <li key={roll.id}>
+                  {roll.product.categoryName} &rarr; {roll.product.productTitle}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </Modal>
     </Layout>
   );
