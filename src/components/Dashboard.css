@@ -34,6 +34,8 @@ body {
   align-items: flex-start; /* Align items to the top/left */
   justify-content: flex-start; /* Left align content */
   flex-direction: column; /* Allow vertical stacking of content */
+  width: 100%; /* Ensure the card takes up full width */
+  box-sizing: border-box; /* Include padding in width calculations */
 }
 
 /* Main Cards */
@@ -53,7 +55,8 @@ body {
   flex-direction: column;
   align-items: flex-start; /* Align items to the top/left */
   justify-content: flex-start; /* Left align content */
-  width: calc(50% - 20px); /* Take up half of the available space with margin */
+  width: 100%; /* Adjusted to take full width */
+  box-sizing: border-box; /* Include padding in width calculations */
 }
 
 .chart-container {

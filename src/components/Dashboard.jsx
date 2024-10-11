@@ -11,7 +11,7 @@ const { Title, Text } = Typography;
 const Dashboard = () => {
   const { userDetails, organizationID } = useOutletContext();
   const today = new Date();
-  const formattedDate = today.toLocaleDateString('en-GB', {
+  const formattedDate = today.toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -25,9 +25,10 @@ const Dashboard = () => {
   const [chartData, setChartData] = useState({
     series: [],
     labels: [],
+    quantities: [],
   });
   const [totalSales, setTotalSales] = useState(0);
-  const [materialSales, setMaterialSales] = useState({}); // State to hold sales per material
+  const [materialSales, setMaterialSales] = useState({});
 
   useEffect(() => {
     const fetchOrderData = async () => {
@@ -63,14 +64,15 @@ const Dashboard = () => {
 
         orders.forEach((order) => {
           const productLabel = `${order.product.categoryName} → ${order.product.productTitle}`;
-          totalQuantity += order.quantity;
-          totalSalesAmount += order.quantity * order.price;
+          const quantity = order.quantity;
+          totalQuantity += quantity;
+          totalSalesAmount += quantity * order.price;
 
           // Aggregate quantities for the chart
           if (productOrderMap[productLabel]) {
-            productOrderMap[productLabel] += order.quantity;
+            productOrderMap[productLabel] += quantity;
           } else {
-            productOrderMap[productLabel] = order.quantity;
+            productOrderMap[productLabel] = quantity;
           }
 
           // Get material
@@ -78,7 +80,7 @@ const Dashboard = () => {
           const material = productMaterialMap[productKey] || 'Unknown';
 
           // Sum total sales per material
-          const orderTotal = order.quantity * order.price;
+          const orderTotal = quantity * order.price;
           if (materialSalesMap[material]) {
             materialSalesMap[material] += orderTotal;
           } else {
@@ -86,15 +88,25 @@ const Dashboard = () => {
           }
         });
 
-        // Set chart data
-        const series = Object.values(productOrderMap).map(
-          (quantity) => (quantity / totalQuantity) * 100
-        );
-        const labels = Object.keys(productOrderMap);
+        // Prepare data for chart
+        const dataPoints = [];
+        Object.entries(productOrderMap).forEach(([label, quantity]) => {
+          const percentage = (quantity / totalQuantity) * 100;
+          dataPoints.push({
+            label,
+            quantity,
+            percentage: parseFloat(percentage.toFixed(2)),
+          });
+        });
 
+        // Sort data points by percentage (optional)
+        dataPoints.sort((a, b) => b.percentage - a.percentage);
+
+        // Set chart data
         setChartData({
-          series: series.map((val) => parseFloat(val.toFixed(2))),
-          labels,
+          series: dataPoints.map((dp) => dp.percentage),
+          labels: dataPoints.map((dp) => dp.label),
+          quantities: dataPoints.map((dp) => dp.quantity),
         });
 
         setTotalSales(totalSalesAmount);
@@ -120,7 +132,8 @@ const Dashboard = () => {
             Сегодня: {formattedDate} | {formattedTime}
           </Text>
           <Title level={2} style={{ color: '#4d4d4d' }}>
-            Добро пожаловать, <span style={{ fontWeight: 'normal' }}>{userDetails?.fullName}</span>
+            Добро пожаловать,{' '}
+            <span style={{ fontWeight: 'normal' }}>{userDetails?.fullName}</span>
           </Title>
         </Space>
       </header>
@@ -139,14 +152,28 @@ const Dashboard = () => {
               {Object.keys(materialSales).length > 0 && (
                 <div style={{ marginTop: '16px' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
-                    {Object.entries(materialSales).map(([material, salesAmount], index) => (
-                      <div key={material} style={{ display: 'flex', alignItems: 'center' }}>
-                        <Badge color={badgeColors[index % badgeColors.length]} />
-                        <Text style={{ color: '#8c8c8c', marginLeft: '8px' }}>
-                          {material} : {salesAmount.toLocaleString('ru-RU')} сум
-                        </Text>
-                      </div>
-                    ))}
+                    {Object.entries(materialSales).map(
+                      ([material, salesAmount], index) => (
+                        <div
+                          key={material}
+                          style={{ display: 'flex', alignItems: 'center' }}
+                        >
+                          <Badge color={badgeColors[index % badgeColors.length]} />
+                          <div style={{ fontSize: '16px', marginLeft: '8px' }}>
+                            <span style={{ color: '#8c8c8c' }}>{material}</span> :{' '}
+                            <span
+                              style={{
+                                color: '#4d4d4d',
+                                fontWeight: '600',
+                                marginLeft: '4px',
+                              }}
+                            >
+                              {salesAmount.toLocaleString('ru-RU')} сум
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -183,7 +210,17 @@ const Dashboard = () => {
                   },
                   dataLabels: {
                     enabled: true,
-                    formatter: (val) => `${val.toFixed(2)}%`,
+                    formatter: function (val, opts) {
+                      return `${val.toFixed(2)}%`;
+                    },
+                  },
+                  tooltip: {
+                    y: {
+                      formatter: function (val, { series, seriesIndex, dataPointIndex, w }) {
+                        const quantity = chartData.quantities[seriesIndex];
+                        return `${quantity.toLocaleString('ru-RU')} шт`;
+                      },
+                    },
                   },
                   responsive: [
                     {
