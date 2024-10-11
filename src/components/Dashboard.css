@@ -12,7 +12,7 @@ body {
 }
 
 .dashboard-header {
-  padding-bottom: 20px;
+  padding-bottom: 30px;
 }
 
 .dashboard-content {
@@ -22,12 +22,12 @@ body {
 
 /* Overview Cards */
 .overview-cards {
-  margin-bottom: 20px;
+  margin-bottom: 38px;
 }
 
 .overview-card {
   background-color: #fff;
-  padding: 20px;
+  padding: 30px;
   border-radius: 12px; /* Soft rounded corners */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Soft shadow */
   display: flex;
@@ -35,6 +35,8 @@ body {
   justify-content: flex-start; /* Left align content */
   flex-direction: column; /* Allow vertical stacking of content */
   width: 100%; /* Ensure the card takes up full width */
+  max-width: 1200px;
+  margin: 0 auto;
   box-sizing: border-box; /* Include padding in width calculations */
 }
 
@@ -44,6 +46,7 @@ body {
   flex-wrap: wrap;
   gap: 20px; /* Adds gap between cards */
   margin-top: 20px;
+  justify-content: center;
 }
 
 .card {
@@ -55,13 +58,13 @@ body {
   flex-direction: column;
   align-items: flex-start; /* Align items to the top/left */
   justify-content: flex-start; /* Left align content */
-  width: 100%; /* Adjusted to take full width */
+  width: calc(50% - 20px); /* Take up half of the available space with margin */
+  max-width: 600px;
   box-sizing: border-box; /* Include padding in width calculations */
 }
 
 .chart-container {
   width: 100%;
-  max-width: 500px; /* Prevent chart from stretching too far */
   height: auto; /* Maintain aspect ratio */
   margin: 0 auto; /* Center chart */
 }
@@ -69,6 +72,7 @@ body {
 @media only screen and (max-width: 768px) {
   .card {
     width: 100%; /* For smaller screens, cards take full width */
+    max-width: 100%;
   }
 
   .chart-container {
