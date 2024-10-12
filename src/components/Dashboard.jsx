@@ -1,6 +1,6 @@
 // Dashboard.jsx
 import React, { useState, useEffect } from 'react';
-import { Typography, Space, Spin, Row, Col, Statistic, Badge, Radio } from 'antd';
+import { Typography, Space, Spin, Row, Col, Badge, Radio } from 'antd';
 import ReactApexChart from 'react-apexcharts';
 import { useOutletContext } from 'react-router-dom';
 import { collection, getDocs } from 'firebase/firestore';
@@ -35,6 +35,9 @@ const Dashboard = () => {
   const [timePeriod, setTimePeriod] = useState('month'); // 'day', 'week', 'month'
   const [areaChartData, setAreaChartData] = useState({ dates: [], values: [] });
 
+  // New state variable for customer sales data
+  const [customerSalesData, setCustomerSalesData] = useState({ series: [] });
+
   useEffect(() => {
     fetchOrderData();
   }, [organizationID, timePeriod]);
@@ -60,6 +63,15 @@ const Dashboard = () => {
         ...doc.data(),
       }));
 
+      // Fetch customers
+      const customersSnapshot = await getDocs(
+        collection(db, `organizations/${organizationID}/customers`)
+      );
+      const customers = customersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
       // Create a map from productKey to material
       const productMaterialMap = {};
       products.forEach((product) => {
@@ -67,8 +79,20 @@ const Dashboard = () => {
         productMaterialMap[key] = product.material;
       });
 
+      // Create a map from customer ID to customer name
+      const customerMap = {};
+      customers.forEach((customer) => {
+        customerMap[customer.id] =
+          customer.brand ||
+          customer.companyName ||
+          customer.personInCharge ||
+          'Неизвестный клиент';
+      });
+
       const productOrderMap = {};
       const materialSalesMap = {};
+      const customerSalesMap = {};
+      const customerOrderQuantityMap = {};
       let totalQuantity = 0;
       let totalSalesAmount = 0;
 
@@ -95,6 +119,18 @@ const Dashboard = () => {
           materialSalesMap[material] += orderTotal;
         } else {
           materialSalesMap[material] = orderTotal;
+        }
+
+        // Aggregate total sales and quantity per customer
+        const customerId = order.client?.id || null;
+        if (customerId) {
+          if (customerSalesMap[customerId]) {
+            customerSalesMap[customerId] += orderTotal;
+            customerOrderQuantityMap[customerId] += quantity;
+          } else {
+            customerSalesMap[customerId] = orderTotal;
+            customerOrderQuantityMap[customerId] = quantity;
+          }
         }
       });
 
@@ -232,6 +268,47 @@ const Dashboard = () => {
         values: chartValues,
       });
 
+      // Prepare data for customer sales chart
+      const customerSalesArray = [];
+
+      customers.forEach((customer) => {
+        const customerId = customer.id;
+        const salesAmount = customerSalesMap[customerId] || 0;
+        const totalQuantity = customerOrderQuantityMap[customerId] || 0;
+        if (salesAmount > 0) {
+          const customerName = customer.brand || 'Неизвестный клиент';
+          const companyName = customer.companyName || 'N/A';
+          customerSalesArray.push({
+            customerId,
+            customerName,
+            companyName,
+            salesAmount,
+            totalQuantity,
+          });
+        }
+      });
+
+      // Sort by sales amount descending
+      customerSalesArray.sort((a, b) => b.salesAmount - a.salesAmount);
+
+      // Optionally, limit to top N customers (e.g., top 10)
+      const topCustomers = customerSalesArray.slice(0, 10);
+
+      const customerSeriesData = topCustomers.map((item) => ({
+        x: item.customerName,
+        y: item.salesAmount,
+        companyName: item.companyName,
+        totalQuantity: item.totalQuantity,
+      }));
+
+      setCustomerSalesData({
+        series: [
+          {
+            data: customerSeriesData,
+          },
+        ],
+      });
+
       setLoading(false);
     } catch (error) {
       console.error('Error fetching orders data:', error);
@@ -261,11 +338,39 @@ const Dashboard = () => {
         <Row gutter={16}>
           <Col span={24}>
             <div className="overview-card">
-              <Statistic
-                title="Общий Объем Заказов (Сум)"
-                value={totalSales.toLocaleString('ru-RU') + " UZS"}
-                valueStyle={{ fontSize: '32px', fontWeight: 'bold' }}
-              />
+              <div>
+                <div
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: '300',
+                    marginBottom: '10px',
+                    color: '#8c8c8c',
+                  }}
+                >
+                  Общий Объем Заказов
+                </div>
+                <div
+                  style={{
+                    fontSize: '32px',
+                    fontWeight: 'bold',
+                    marginBottom: '12px',
+                    color: '#4d4d4d',
+                  }}
+                >
+                  {totalSales.toLocaleString('ru-RU')}
+                  <span
+                    style={{
+                      fontSize: '18px',
+                      fontWeight: 'normal',
+                      color: '#595959',
+                      marginLeft: '8px',
+                    }}
+                  >
+                    UZS
+                  </span>
+                </div>
+              </div>
+
               {/* Material Sales Details */}
               {Object.keys(materialSales).length > 0 && (
                 <div style={{ marginTop: '16px' }}>
@@ -295,7 +400,7 @@ const Dashboard = () => {
         </Row>
       </div>
 
-      {/* Chart Section */}
+      {/* Area Chart Section */}
       <div className="main-cards">
         <div className="card">
           {loading ? (
@@ -349,16 +454,25 @@ const Dashboard = () => {
                     yaxis: {
                       title: {
                         text: 'Количество заказов',
-                        style : {
-                          color : "#bfbfbf",
-                          fontWeight : "300"
+                        style: {
+                          color: '#bfbfbf',
+                          fontWeight: '300',
                         },
                       },
-                      
+                      labels: {
+                        formatter: function (value) {
+                          return Number(value).toLocaleString('ru-RU');
+                        },
+                      },
                     },
                     tooltip: {
                       x: {
                         format: timePeriod === 'month' ? 'MMM yyyy' : 'dd MMM yyyy',
+                      },
+                      y: {
+                        formatter: function (value) {
+                          return Number(value).toLocaleString('ru-RU');
+                        },
                       },
                     },
                   }}
@@ -375,7 +489,10 @@ const Dashboard = () => {
             </>
           )}
         </div>
+      </div>
 
+      {/* New Charts Section */}
+      <div className="main-cards">
         <div className="card">
           {loading ? (
             <div
@@ -389,11 +506,25 @@ const Dashboard = () => {
               <Spin tip="Загрузка данных..." />
             </div>
           ) : (
-            <div id="chart" className="chart-container">
+            <div id="donut-chart" className="chart-container">
               <ReactApexChart
                 options={{
                   chart: {
                     type: 'donut',
+                    toolbar: {
+                      show: true,
+                      export: {
+                        csv: {
+                          headerCategory: 'Категория',
+                          headerValue: 'Значение',
+                        },
+                        menu: {
+                          svg: 'Скачать SVG',
+                          png: 'Скачать PNG',
+                          csv: 'Скачать CSV',
+                        },
+                      },
+                    },
                   },
                   labels: chartData.labels,
                   legend: {
@@ -416,10 +547,10 @@ const Dashboard = () => {
                   },
                   responsive: [
                     {
-                      breakpoint: 480,
+                      breakpoint: 768,
                       options: {
                         chart: {
-                          width: 250,
+                          width: '100%',
                         },
                         legend: {
                           position: 'bottom',
@@ -427,9 +558,109 @@ const Dashboard = () => {
                       },
                     },
                   ],
+                  title: {
+                    text: 'Продажи по продуктам',
+                    align: 'left',
+                  },
                 }}
                 series={chartData.series}
                 type="donut"
+                height={350}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          {loading ? (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '300px',
+              }}
+            >
+              <Spin tip="Загрузка данных..." />
+            </div>
+          ) : (
+            <div id="bar-chart" className="chart-container">
+              <ReactApexChart
+                options={{
+                  chart: {
+                    type: 'bar',
+                    height: 350,
+                    toolbar: {
+                      show: true,
+                      export: {
+                        csv: {
+                          headerCategory: 'Категория',
+                          headerValue: 'Значение',
+                        },
+                        menu: {
+                          svg: 'Скачать SVG',
+                          png: 'Скачать PNG',
+                          csv: 'Скачать CSV',
+                        },
+                      },
+                    },
+                  },
+                  plotOptions: {
+                    bar: {
+                      horizontal: true,
+                      barHeight: '70%',
+                    },
+                  },
+                  dataLabels: {
+                    enabled: false,
+                  },
+                  xaxis: {
+                    labels: {
+                      formatter: function (value) {
+                        return Number(value).toLocaleString('ru-RU');
+                      },
+                    },
+                    title: {
+                      text: 'Продажи (UZS)',
+                      style: {
+                        color: '#bfbfbf',
+                        fontWeight: '300',
+                      },
+                    },
+                  },
+                  yaxis: {
+                    labels: {
+                      style: {
+                        fontSize: '12px',
+                      },
+                    },
+                  },
+                  tooltip: {
+                    custom: function ({ series, seriesIndex, dataPointIndex, w }) {
+                      const data = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+                      return (
+                        '<div class="arrow_box">' +
+                        '<strong>' +
+                        data.companyName +
+                        '</strong><br/>' +
+                        '<span>Объем продаж: ' +
+                        Number(data.y).toLocaleString('ru-RU') +
+                        ' UZS</span><br/>' +
+                        '<span>Объем заказов: ' +
+                        data.totalQuantity +
+                        '</span>' +
+                        '</div>'
+                      );
+                    },
+                  },
+                  title: {
+                    text: 'Топ клиентов по продажам',
+                    align: 'left',
+                  },
+                }}
+                series={customerSalesData.series}
+                type="bar"
+                height={350}
               />
             </div>
           )}
