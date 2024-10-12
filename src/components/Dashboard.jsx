@@ -425,66 +425,125 @@ const Dashboard = () => {
                   </Radio.Group>
                 </div>
                 <ReactApexChart
-                  options={{
-                    chart: {
-                      type: 'area',
-                      height: 350,
-                      zoom: {
-                        enabled: false,
-                      },
-                    },
-                    colors: ['#1890ff'], // Primary blue color
-                    dataLabels: {
+                 options={{
+                  chart: {
+                    type: 'area',
+                    height: 350,
+                    zoom: {
                       enabled: false,
                     },
-                    stroke: {
-                      curve: 'smooth',
+                    locales: [
+                      {
+                        name: 'ru',
+                        options: {
+                          months: [
+                            'Январь',
+                            'Февраль',
+                            'Март',
+                            'Апрель',
+                            'Май',
+                            'Июнь',
+                            'Июль',
+                            'Август',
+                            'Сентябрь',
+                            'Октябрь',
+                            'Ноябрь',
+                            'Декабрь',
+                          ],
+                          shortMonths: [
+                            'Янв',
+                            'Фев',
+                            'Мар',
+                            'Апр',
+                            'Май',
+                            'Июн',
+                            'Июл',
+                            'Авг',
+                            'Сен',
+                            'Окт',
+                            'Ноя',
+                            'Дек',
+                          ],
+                          days: [
+                            'Воскресенье',
+                            'Понедельник',
+                            'Вторник',
+                            'Среда',
+                            'Четверг',
+                            'Пятница',
+                            'Суббота',
+                          ],
+                          shortDays: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+                          toolbar: {
+                            exportToSVG: 'Скачать SVG',
+                            exportToPNG: 'Скачать PNG',
+                            exportToCSV: 'Скачать CSV',
+                            menu: 'Меню',
+                            selection: 'Выбор',
+                            selectionZoom: 'Увеличить выделение',
+                            zoomIn: 'Увеличить',
+                            zoomOut: 'Уменьшить',
+                            pan: 'Панорамирование',
+                            reset: 'Сбросить увеличение',
+                          },
+                        },
+                      },
+                    ],
+                    defaultLocale: 'ru',
+                  },
+                  colors: ['#1890ff'], // Primary blue color
+                  dataLabels: {
+                    enabled: false,
+                  },
+                  stroke: {
+                    curve: 'smooth',
+                  },
+                  title: {
+                    text: 'Количество заказов за период',
+                    align: 'left',
+                  },
+                  xaxis: {
+                    type: 'datetime',
+                    categories: areaChartData.dates,
+                    labels: {
+                      datetimeUTC: false,
+                      format: timePeriod === 'month' ? 'MMM yyyy' : 'dd MMM',
                     },
+                  },
+                  yaxis: {
                     title: {
-                      text: 'Количество заказов за период',
-                      align: 'left',
-                    },
-                    xaxis: {
-                      type: 'datetime',
-                      categories: areaChartData.dates,
-                      labels: {
-                        format: timePeriod === 'month' ? 'MMM yyyy' : 'dd MMM',
+                      text: 'Количество заказов',
+                      style: {
+                        color: '#bfbfbf',
+                        fontWeight: '300',
                       },
                     },
-                    yaxis: {
-                      title: {
-                        text: 'Количество заказов',
-                        style: {
-                          color: '#bfbfbf',
-                          fontWeight: '300',
-                        },
-                      },
-                      labels: {
-                        formatter: function (value) {
-                          return Number(value).toLocaleString('ru-RU');
-                        },
+                    labels: {
+                      formatter: function (value) {
+                        return Number(value).toLocaleString('ru-RU');
                       },
                     },
-                    tooltip: {
-                      x: {
-                        format: timePeriod === 'month' ? 'MMM yyyy' : 'dd MMM yyyy',
-                      },
-                      y: {
-                        formatter: function (value) {
-                          return Number(value).toLocaleString('ru-RU');
-                        },
+                  },
+                  tooltip: {
+                    x: {
+                      format: timePeriod === 'month' ? 'MMM yyyy' : 'dd MMM yyyy',
+                    },
+                    y: {
+                      formatter: function (value) {
+                        return Number(value).toLocaleString('ru-RU');
                       },
                     },
-                  }}
-                  series={[
-                    {
-                      name: 'Заказы',
-                      data: areaChartData.values,
-                    },
-                  ]}
-                  type="area"
-                  height={350}
-                />
+                  },
+                }}
+                series={[
+                  {
+                    name: 'Заказы',
+                    data: areaChartData.values,
+                  },
+                ]}
+                type="area"
+                height={350}
+              />
               </div>
             </>
           )}

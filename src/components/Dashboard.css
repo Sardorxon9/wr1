@@ -12,7 +12,7 @@ body {
 }
 
 .dashboard-header {
-  padding-bottom: 30px;
+  padding-bottom: 20px;
 }
 
 .dashboard-content {
@@ -22,12 +22,12 @@ body {
 
 /* Overview Cards */
 .overview-cards {
-  margin-bottom: 38px;
+  margin-bottom: 20px;
 }
 
 .overview-card {
   background-color: #fff;
-  padding: 30px;
+  padding: 20px;
   border-radius: 12px; /* Soft rounded corners */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Soft shadow */
   display: flex;
@@ -58,7 +58,7 @@ body {
   flex-direction: column;
   align-items: flex-start; /* Align items to the top/left */
   justify-content: flex-start; /* Left align content */
-  width: calc(50% - 20px); /* Take up half of the available space with margin */
+  flex: 1 1 400px; /* Adjusted for responsive design */
   max-width: 600px;
   box-sizing: border-box; /* Include padding in width calculations */
 }
@@ -71,7 +71,7 @@ body {
 
 @media only screen and (max-width: 768px) {
   .card {
-    width: 100%; /* For smaller screens, cards take full width */
+    flex: 1 1 100%; /* Cards take full width on smaller screens */
     max-width: 100%;
   }
 
