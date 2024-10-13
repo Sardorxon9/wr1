@@ -40,6 +40,47 @@ body {
   width: auto;
 }
 
+/* First Overview Card Styling */
+.overview-card.first-card {
+  /* Additional styles if needed */
+}
+
+.overview-card-title {
+  font-size: 14px;
+  font-weight: 300;
+  margin-bottom: 10px;
+  color: #8c8c8c;
+}
+
+.overview-card-title.first-card-title {
+  color: #1890ff; /* Primary blue color */
+}
+
+.overview-card-number {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 12px;
+  color: #4d4d4d;
+}
+
+.overview-card-number.small-number {
+  font-size: 27.2px; /* Decreased by 15% */
+  font-weight: 600; /* Semi-bold */
+}
+
+.overview-card-currency {
+  font-size: 18px;
+  font-weight: normal;
+  color: #595959;
+  margin-left: 8px;
+}
+
+.overview-card-quantity {
+  font-size: 14px;
+  font-weight: 300;
+  color: #8c8c8c;
+}
+
 /* Main Cards */
 .main-cards {
   display: flex;

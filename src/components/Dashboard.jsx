@@ -50,6 +50,9 @@ const Dashboard = () => {
   // Aggregation interval state
   const [aggregationInterval, setAggregationInterval] = useState('month');
 
+  // Product order stats
+  const [productOrderStats, setProductOrderStats] = useState([]);
+
   useEffect(() => {
     fetchOrderData();
   }, [organizationID]);
@@ -57,6 +60,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (!orders.length || !products.length || !customers.length) return;
     processAreaChartData();
+    computeProductOrderStats(); // Compute product order stats when data is ready
   }, [orders, products, customers, areaChartDateRange, timePeriod]);
 
   useEffect(() => {
@@ -108,11 +112,54 @@ const Dashboard = () => {
     }
   };
 
+  const computeProductOrderStats = () => {
+    const statsMap = {};
+
+    orders.forEach((order) => {
+      const categoryName = order.product.categoryName;
+      const productTitle = order.product.productTitle;
+      const key = `${categoryName}→${productTitle}`;
+
+      const totalPrice = order.quantity * order.price;
+      const totalQuantity = order.quantity;
+
+      if (statsMap[key]) {
+        statsMap[key].totalPrice += totalPrice;
+        statsMap[key].totalQuantity += totalQuantity;
+      } else {
+        statsMap[key] = {
+          key, // for identification
+          categoryName,
+          productTitle,
+          totalPrice,
+          totalQuantity,
+        };
+      }
+    });
+
+    // Convert statsMap to array
+    const statsArray = Object.values(statsMap);
+
+    // Only include products with orders (totalQuantity > 0)
+    const filteredStatsArray = statsArray.filter(
+      (stat) => stat.totalQuantity > 0
+    );
+
+    // Optionally, sort the array by totalPrice descending
+    filteredStatsArray.sort((a, b) => b.totalPrice - a.totalPrice);
+
+    setProductOrderStats(filteredStatsArray);
+  };
+
   const processAreaChartData = () => {
     let filteredOrders = orders;
     let startDate, endDate;
 
-    if (Array.isArray(areaChartDateRange) && areaChartDateRange[0] && areaChartDateRange[1]) {
+    if (
+      Array.isArray(areaChartDateRange) &&
+      areaChartDateRange[0] &&
+      areaChartDateRange[1]
+    ) {
       // Use the specified date range from date pickers
       const [startMoment, endMoment] = areaChartDateRange;
       startDate = startMoment.startOf('day').toDate();
@@ -153,7 +200,11 @@ const Dashboard = () => {
     const diffInDays = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
     let aggInterval;
 
-    if (Array.isArray(areaChartDateRange) && areaChartDateRange[0] && areaChartDateRange[1]) {
+    if (
+      Array.isArray(areaChartDateRange) &&
+      areaChartDateRange[0] &&
+      areaChartDateRange[1]
+    ) {
       // If date range is specified, adjust aggregation based on range
       if (diffInDays <= 31) {
         aggInterval = 'day';
@@ -215,7 +266,11 @@ const Dashboard = () => {
         }
       });
     } else if (aggInterval === 'month') {
-      let currentMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      let currentMonth = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        1
+      );
       while (currentMonth <= endDate) {
         const monthString = currentMonth.toISOString().split('T')[0];
         aggregatedData[monthString] = 0;
@@ -226,7 +281,11 @@ const Dashboard = () => {
       filteredOrders.forEach((order) => {
         const orderDate = order.date?.toDate() || null;
         if (orderDate) {
-          const monthStart = new Date(orderDate.getFullYear(), orderDate.getMonth(), 1);
+          const monthStart = new Date(
+            orderDate.getFullYear(),
+            orderDate.getMonth(),
+            1
+          );
           const monthString = monthStart.toISOString().split('T')[0];
           if (aggregatedData[monthString] !== undefined) {
             aggregatedData[monthString] += order.quantity;
@@ -266,7 +325,11 @@ const Dashboard = () => {
     let filteredOrders = orders;
     let startDate, endDate;
 
-    if (Array.isArray(donutChartDateRange) && donutChartDateRange[0] && donutChartDateRange[1]) {
+    if (
+      Array.isArray(donutChartDateRange) &&
+      donutChartDateRange[0] &&
+      donutChartDateRange[1]
+    ) {
       // Use the specified date range from date pickers
       const [startMoment, endMoment] = donutChartDateRange;
       startDate = startMoment.startOf('day').toDate();
@@ -281,13 +344,6 @@ const Dashboard = () => {
     filteredOrders = orders.filter((order) => {
       const orderDate = order.date?.toDate() || null;
       return orderDate >= startDate && orderDate <= endDate;
-    });
-
-    // Map productKey to material
-    const productMaterialMap = {};
-    products.forEach((product) => {
-      const key = `${product.categoryId}_${product.id}`;
-      productMaterialMap[key] = product.material;
     });
 
     // Proceed to process the filteredOrders for donut chart
@@ -334,7 +390,11 @@ const Dashboard = () => {
     let filteredOrders = orders;
     let startDate, endDate;
 
-    if (Array.isArray(barChartDateRange) && barChartDateRange[0] && barChartDateRange[1]) {
+    if (
+      Array.isArray(barChartDateRange) &&
+      barChartDateRange[0] &&
+      barChartDateRange[1]
+    ) {
       // Use the specified date range from date pickers
       const [startMoment, endMoment] = barChartDateRange;
       startDate = startMoment.startOf('day').toDate();
@@ -349,16 +409,6 @@ const Dashboard = () => {
     filteredOrders = orders.filter((order) => {
       const orderDate = order.date?.toDate() || null;
       return orderDate >= startDate && orderDate <= endDate;
-    });
-
-    // Create customer map
-    const customerMap = {};
-    customers.forEach((customer) => {
-      customerMap[customer.id] =
-        customer.brand ||
-        customer.companyName ||
-        customer.personInCharge ||
-        'Неизвестный клиент';
     });
 
     // Proceed to process the filteredOrders for bar chart
@@ -434,21 +484,6 @@ const Dashboard = () => {
     return num.toLocaleString('ru-RU');
   };
 
-  // Function to format date for mobile
-  const formatDateForMobile = (date) => {
-    const dt = new Date(date);
-    if (window.innerWidth < 480) {
-      return `${('0' + (dt.getMonth() + 1)).slice(-2)}.${dt
-        .getFullYear()
-        .toString()
-        .slice(-2)}`;
-    }
-    return dt.toLocaleDateString('ru-RU', {
-      month: 'long',
-      year: 'numeric',
-    });
-  };
-
   // Function to format date labels based on aggregation
   const formatDateLabel = (date) => {
     const dt = new Date(date);
@@ -493,6 +528,9 @@ const Dashboard = () => {
       : text;
   };
 
+  // Calculate total quantity for all orders
+  const totalQuantity = orders.reduce((acc, order) => acc + order.quantity, 0);
+
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -502,49 +540,51 @@ const Dashboard = () => {
           </Text>
           <Title level={2} style={{ color: '#4d4d4d' }}>
             Добро пожаловать,{' '}
-            <span style={{ fontWeight: 'normal' }}>{userDetails?.fullName}</span>
+            <span style={{ fontWeight: 'normal' }}>
+              {userDetails?.fullName}
+            </span>
           </Title>
         </Space>
       </header>
 
       {/* Overview Cards */}
       <div className="overview-cards">
-        <div className="overview-card">
+        {/* First Overview Card with unique styling */}
+        <div className="overview-card first-card">
           <div>
-            <div
-              style={{
-                fontSize: '14px',
-                fontWeight: '300',
-                marginBottom: '10px',
-                color: '#8c8c8c',
-              }}
-            >
+            <div className="overview-card-title first-card-title">
               Общий Объем Заказов
             </div>
-            <div
-              style={{
-                fontSize: '32px',
-                fontWeight: 'bold',
-                marginBottom: '12px',
-                color: '#4d4d4d',
-              }}
-            >
+            <div className="overview-card-number">
               {orders
                 .reduce((acc, order) => acc + order.quantity * order.price, 0)
                 .toLocaleString('ru-RU')}
-              <span
-                style={{
-                  fontSize: '18px',
-                  fontWeight: 'normal',
-                  color: '#595959',
-                  marginLeft: '8px',
-                }}
-              >
-                UZS
-              </span>
+              <span className="overview-card-currency">сум</span>
+            </div>
+            <div className="overview-card-quantity">
+              {totalQuantity.toLocaleString('ru-RU')} шт
             </div>
           </div>
         </div>
+
+        {/* Other Overview Cards */}
+        {productOrderStats.map((productStat) => (
+          <div className="overview-card" key={productStat.key}>
+            <div>
+              <div className="overview-card-title">
+                Итого для: {productStat.categoryName} →{' '}
+                {productStat.productTitle}
+              </div>
+              <div className="overview-card-number small-number">
+                {productStat.totalPrice.toLocaleString('ru-RU')}
+                <span className="overview-card-currency">сум</span>
+              </div>
+              <div className="overview-card-quantity">
+                {productStat.totalQuantity.toLocaleString('ru-RU')} шт
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Main Cards */}
@@ -708,7 +748,9 @@ const Dashboard = () => {
                         ],
                         defaultLocale: 'ru',
                       },
-                      labels: chartData.labels.map((label) => shortenText(label)),
+                      labels: chartData.labels.map((label) =>
+                        shortenText(label)
+                      ),
                       legend: {
                         position: 'right',
                         fontSize: '14px',
@@ -720,7 +762,8 @@ const Dashboard = () => {
                       tooltip: {
                         y: {
                           formatter: (val, { series, seriesIndex }) => {
-                            const quantity = chartData.quantities[seriesIndex];
+                            const quantity =
+                              chartData.quantities[seriesIndex];
                             return `${quantity.toLocaleString('ru-RU')} шт`;
                           },
                         },
@@ -830,9 +873,16 @@ const Dashboard = () => {
                         },
                       },
                       tooltip: {
-                        custom: ({ series, seriesIndex, dataPointIndex, w }) => {
+                        custom: ({
+                          series,
+                          seriesIndex,
+                          dataPointIndex,
+                          w,
+                        }) => {
                           const data =
-                            w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+                            w.globals.initialSeries[seriesIndex].data[
+                              dataPointIndex
+                            ];
                           return (
                             '<div class="arrow_box">' +
                             '<strong>' +
