@@ -3,7 +3,7 @@ body {
   margin: 0;
   padding: 0;
   color: #4d4d4d;
-  font-family: "Open Sans", Helvetica, sans-serif;
+  font-family: 'Open Sans', Helvetica, sans-serif;
   box-sizing: border-box;
 }
 
@@ -23,66 +23,121 @@ body {
 /* Overview Cards */
 .overview-cards {
   margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: flex-start;
 }
 
 .overview-card {
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 12px; /* Soft rounded corners */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Soft shadow */
-  display: flex;
-  align-items: flex-start; /* Align items to the top/left */
-  justify-content: flex-start; /* Left align content */
-  flex-direction: column; /* Allow vertical stacking of content */
-  width: 100%; /* Ensure the card takes up full width */
-  max-width: 1200px;
-  margin: 0 auto;
-  box-sizing: border-box; /* Include padding in width calculations */
-}
-
-/* Main Cards */
-.main-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px; /* Adds gap between cards */
-  margin-top: 20px;
-  justify-content: center;
-}
-
-.card {
   background-color: #fff;
   padding: 20px;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  align-items: flex-start; /* Align items to the top/left */
-  justify-content: flex-start; /* Left align content */
-  flex: 1 1 400px; /* Adjusted for responsive design */
-  max-width: 600px;
-  box-sizing: border-box; /* Include padding in width calculations */
+  box-sizing: border-box;
+  width: auto;
 }
 
+/* Main Cards */
+.main-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-top: 20px;
+  justify-content: center;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.half-width {
+  width: 50%;
+}
+
+.flex-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: nowrap;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+/* Card Styles */
+.card {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Chart Container */
 .chart-container {
   width: 100%;
-  height: auto; /* Maintain aspect ratio */
-  margin: 0 auto; /* Center chart */
+  height: auto;
+  margin: 0 auto;
 }
 
+/* Loading Spinner */
+.loading-spinner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 300px;
+}
+
+/* Adjustments for Mobile and Small Screens */
 @media only screen and (max-width: 768px) {
-  .card {
-    flex: 1 1 100%; /* Cards take full width on smaller screens */
-    max-width: 100%;
+  .flex-row {
+    flex-direction: column;
+  }
+
+  .half-width {
+    width: 100%;
+  }
+
+  .overview-card {
+    padding: 16px;
+    margin-bottom: 10px;
   }
 
   .chart-container {
-    width: 100%; /* Ensure chart is responsive on smaller screens */
-    max-width: 100%; /* Allow full width */
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .apexcharts-title-text,
+  .apexcharts-xaxis-label,
+  .apexcharts-yaxis-label {
+    font-size: 12px !important;
+  }
+
+  .apexcharts-legend-text {
+    font-size: 12px !important;
   }
 }
 
 @media only screen and (max-width: 480px) {
+  .overview-card {
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+
   .chart-container {
     width: 100%;
+  }
+
+  .apexcharts-title-text,
+  .apexcharts-xaxis-label,
+  .apexcharts-yaxis-label {
+    font-size: 10px !important;
+  }
+
+  .apexcharts-legend-text {
+    font-size: 10px !important;
   }
 }

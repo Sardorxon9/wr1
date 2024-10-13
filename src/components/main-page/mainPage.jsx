@@ -13,9 +13,9 @@ import {
   Modal,
   Alert,
 } from 'antd';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../login-signUp/firebase';
-import { getDoc, doc, collection, getDocs, onSnapshot } from "firebase/firestore";
+import { getDoc, doc, collection, getDocs, onSnapshot } from 'firebase/firestore';
 import {
   DashboardOutlined,
   LogoutOutlined,
@@ -39,6 +39,7 @@ const { Title, Text } = Typography;
 
 const MainPage = () => {
   const navigate = useNavigate();
+  const location = useLocation(); // Import and use useLocation
   const [userDetails, setUserDetails] = useState(null);
   const [organizationName, setOrganizationName] = useState('');
   const [organizationID, setOrganizationID] = useState('');
@@ -67,12 +68,12 @@ const MainPage = () => {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(user => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         fetchUserData(user.uid);
       } else {
         console.error('No user found');
-        navigate("/error");
+        navigate('/error');
       }
     });
     return () => unsubscribe();
@@ -80,7 +81,7 @@ const MainPage = () => {
 
   const fetchUserData = async (userUid) => {
     try {
-      const ownerDocRef = doc(db, "owner-users", userUid);
+      const ownerDocRef = doc(db, 'owner-users', userUid);
       const ownerDocSnap = await getDoc(ownerDocRef);
 
       if (ownerDocSnap.exists()) {
@@ -90,7 +91,7 @@ const MainPage = () => {
 
         if (userData.organizationID) {
           setOrganizationID(userData.organizationID);
-          const organizationDocRef = doc(db, "organizations", userData.organizationID);
+          const organizationDocRef = doc(db, 'organizations', userData.organizationID);
           const organizationDocSnap = await getDoc(organizationDocRef);
           if (organizationDocSnap.exists()) {
             setOrganizationName(organizationDocSnap.data().name);
@@ -98,7 +99,7 @@ const MainPage = () => {
           setupAlertListeners(userData.organizationID);
         }
       } else {
-        const organizationsRef = collection(db, "organizations");
+        const organizationsRef = collection(db, 'organizations');
         const orgsSnapshot = await getDocs(organizationsRef);
 
         let isMember = false;
@@ -122,11 +123,11 @@ const MainPage = () => {
 
         if (!isMember) {
           console.error("User not found in owner-users or any organization's members");
-          navigate("/error");
+          navigate('/error');
         }
       }
     } catch (error) {
-      console.error("Error fetching user data:", error);
+      console.error('Error fetching user data:', error);
       notification.error({
         message: 'Ошибка',
         description: 'Не удалось загрузить данные пользователя.',
@@ -138,23 +139,30 @@ const MainPage = () => {
   const setupAlertListeners = (orgID) => {
     const customersRef = collection(db, `organizations/${orgID}/customers`);
     const unsubscribeCustomers = onSnapshot(customersRef, (snapshot) => {
-      const customersData = snapshot.docs.map(doc => ({
+      const customersData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      const customersWithZeroPaper = customersData.filter(customer => customer.paper?.available === 0);
-      
+      const customersWithZeroPaper = customersData.filter(
+        (customer) => customer.paper?.available === 0
+      );
+
       const standardRollsRef = collection(db, `organizations/${orgID}/standard-rolls`);
       const unsubscribeStandardRolls = onSnapshot(standardRollsRef, (rollSnapshot) => {
-        const standardRollsData = rollSnapshot.docs.map(doc => ({
+        const standardRollsData = rollSnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
-        const rollsWithZeroAvailable = standardRollsData.filter(roll => roll.available === 0);
+        const rollsWithZeroAvailable = standardRollsData.filter((roll) => roll.available === 0);
 
         if (customersWithZeroPaper.length > 0 || rollsWithZeroAvailable.length > 0) {
-          const customerMessages = customersWithZeroPaper.map(customer => `Отсутствует бумага для клиента "${customer.brand}"`);
-          const rollMessages = rollsWithZeroAvailable.map(roll => `Рулон бумаги (стандарт дизайн) для "${roll.product.categoryName} → ${roll.product.productTitle}" отсутствует`);
+          const customerMessages = customersWithZeroPaper.map(
+            (customer) => `Отсутствует бумага для клиента "${customer.brand}"`
+          );
+          const rollMessages = rollsWithZeroAvailable.map(
+            (roll) =>
+              `Рулон бумаги (стандарт дизайн) для "${roll.product.categoryName} → ${roll.product.productTitle}" отсутствует`
+          );
           setAlertMessages([...customerMessages, ...rollMessages]);
 
           setDetailedAlertData({
@@ -181,19 +189,22 @@ const MainPage = () => {
   };
 
   const handleLogout = () => {
-    auth.signOut().then(() => {
-      navigate('/login');
-      notification.success({
-        message: 'Успех',
-        description: 'Вы успешно вышли из системы.',
+    auth
+      .signOut()
+      .then(() => {
+        navigate('/login');
+        notification.success({
+          message: 'Успех',
+          description: 'Вы успешно вышли из системы.',
+        });
+      })
+      .catch((error) => {
+        console.error('Error logging out:', error);
+        notification.error({
+          message: 'Ошибка',
+          description: 'Не удалось выйти из системы.',
+        });
       });
-    }).catch((error) => {
-      console.error("Error logging out:", error);
-      notification.error({
-        message: 'Ошибка',
-        description: 'Не удалось выйти из системы.',
-      });
-    });
   };
 
   const showLogoutModal = () => {
@@ -212,54 +223,152 @@ const MainPage = () => {
     setIsDetailModalVisible(false);
   };
 
+  // Map route paths to menu keys
+  const menuKeyMap = {
+    '/mainpage/dashboard': '1',
+    '/mainpage/create-order': '2',
+    '/mainpage/order-list': '3',
+    '/mainpage/employees': '4',
+    '/mainpage/products': '5',
+    '/mainpage/customers': '6',
+    '/mainpage/materials': '7',
+    '/mainpage/manage-paper': '8',
+  };
+
+  const currentPath = location.pathname;
+  let selectedKey = menuKeyMap[currentPath];
+
+  // Handle dynamic paths (e.g., /mainpage/order-list/123)
+  if (!selectedKey) {
+    // Find if current path starts with any of the keys
+    const matchedKey = Object.keys(menuKeyMap).find((path) =>
+      currentPath.startsWith(path)
+    );
+    selectedKey = menuKeyMap[matchedKey];
+  }
+
   const menuItems = [
     {
       key: '1',
       icon: <DashboardOutlined />,
-      label: <Link to="/mainpage/dashboard" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Dashboard</Link>,
+      label: (
+        <Link
+          to="/mainpage/dashboard"
+          state={{ organizationID }}
+          onClick={() => setDrawerVisible(false)}
+        >
+          Dashboard
+        </Link>
+      ),
     },
-    ...(userDetails?.role === 'owner' ? [
-      {
-        key: '2',
-        icon: <FormOutlined />,
-        label: <Link to="/mainpage/create-order" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Добавить заказ</Link>,
-      }
-    ] : []),
+    ...(userDetails?.role === 'owner'
+      ? [
+          {
+            key: '2',
+            icon: <FormOutlined />,
+            label: (
+              <Link
+                to="/mainpage/create-order"
+                state={{ organizationID }}
+                onClick={() => setDrawerVisible(false)}
+              >
+                Добавить заказ
+              </Link>
+            ),
+          },
+        ]
+      : []),
     {
       key: '3',
       icon: <OrderedListOutlined />,
-      label: <Link to="/mainpage/order-list" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Заказы</Link>,
+      label: (
+        <Link
+          to="/mainpage/order-list"
+          state={{ organizationID }}
+          onClick={() => setDrawerVisible(false)}
+        >
+          Заказы
+        </Link>
+      ),
     },
     {
       key: '4',
       icon: <TeamOutlined />,
-      label: <Link to="/mainpage/employees" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Сотрудники</Link>,
+      label: (
+        <Link
+          to="/mainpage/employees"
+          state={{ organizationID }}
+          onClick={() => setDrawerVisible(false)}
+        >
+          Сотрудники
+        </Link>
+      ),
     },
     {
       key: '5',
       icon: <AppstoreAddOutlined />,
-      label: <Link to="/mainpage/products" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Продукты</Link>,
+      label: (
+        <Link
+          to="/mainpage/products"
+          state={{ organizationID }}
+          onClick={() => setDrawerVisible(false)}
+        >
+          Продукты
+        </Link>
+      ),
     },
     {
       key: '6',
-      icon: alertMessages.some(msg => msg.includes('бумага для клиента')) ? <ExclamationCircleFilled style={{color: "#ff4d4f"}} /> : <UserOutlined />,
-      label: <Link to="/mainpage/customers" state={{ organizationID }} onClick={() => setDrawerVisible(false)}>Клиенты</Link>,
+      icon: alertMessages.some((msg) => msg.includes('бумага для клиента')) ? (
+        <ExclamationCircleFilled style={{ color: '#ff4d4f' }} />
+      ) : (
+        <UserOutlined />
+      ),
+      label: (
+        <Link
+          to="/mainpage/customers"
+          state={{ organizationID }}
+          onClick={() => setDrawerVisible(false)}
+        >
+          Клиенты
+        </Link>
+      ),
     },
     {
       key: '7',
       icon: <CodeSandboxOutlined />,
-      label: <Link to="/mainpage/materials" state={organizationID ? { organizationID } : {}} onClick={() => setDrawerVisible(false)}>Сырье</Link>,
+      label: (
+        <Link
+          to="/mainpage/materials"
+          state={organizationID ? { organizationID } : {}}
+          onClick={() => setDrawerVisible(false)}
+        >
+          Сырье
+        </Link>
+      ),
     },
     {
       key: '8',
       icon: <GroupOutlined />,
-      label: <Link to="/mainpage/manage-paper" state={organizationID ? { organizationID } : {}} onClick={() => setDrawerVisible(false)}>Бумаги</Link>,
+      label: (
+        <Link
+          to="/mainpage/manage-paper"
+          state={organizationID ? { organizationID } : {}}
+          onClick={() => setDrawerVisible(false)}
+        >
+          Бумаги
+        </Link>
+      ),
     },
     {
       key: '9',
       icon: <LogoutOutlined style={{ color: '#f5222d' }} />,
       label: (
-        <Button type="link" onClick={showLogoutModal} style={{ color: "#d9d9d9", paddingLeft: 0 }}>
+        <Button
+          type="link"
+          onClick={showLogoutModal}
+          style={{ color: '#d9d9d9', paddingLeft: 0 }}
+        >
           Выйти
         </Button>
       ),
@@ -288,9 +397,19 @@ const MainPage = () => {
       {isMobile ? (
         <Drawer
           title={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
               <span>{organizationName || 'Menu'}</span>
-              <Button type="text" icon={<CloseOutlined />} onClick={() => setDrawerVisible(false)} />
+              <Button
+                type="text"
+                icon={<CloseOutlined />}
+                onClick={() => setDrawerVisible(false)}
+              />
             </div>
           }
           placement="left"
@@ -299,14 +418,24 @@ const MainPage = () => {
           visible={drawerVisible}
           bodyStyle={{ padding: 0 }}
         >
-          <Menu theme="dark" mode="inline" items={menuItems} />
+          <Menu
+            theme="dark"
+            mode="inline"
+            items={menuItems}
+            selectedKeys={[selectedKey]}
+          />
         </Drawer>
       ) : (
         <Sider trigger={null} collapsible collapsed={collapsed}>
           <div className="whiteray-logo">
             {collapsed ? '..' : organizationName || 'Loading...'}
           </div>
-          <Menu theme="dark" mode="inline" defaultSelectedKeys={['1']} items={menuItems} />
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            items={menuItems}
+          />
         </Sider>
       )}
       <Layout>
@@ -343,27 +472,38 @@ const MainPage = () => {
           {!isMobile && alertMessages.length > 0 && (
             <Alert
               message={
-                alertMessages.length > 1
-                  ? (
-                    <span>
-                      Отсутствует бумага для некоторых клиентов и/или рулонов.{' '}
-                      <Button type="link" onClick={showDetailModal}>
-                        Подробно
-                      </Button>
-                    </span>
-                  )
-                  : alertMessages[0]
+                alertMessages.length > 1 ? (
+                  <span>
+                    Отсутствует бумага для некоторых клиентов и/или рулонов.{' '}
+                    <Button type="link" onClick={showDetailModal}>
+                      Подробно
+                    </Button>
+                  </span>
+                ) : (
+                  alertMessages[0]
+                )
               }
               type="warning"
               showIcon
               style={{ maxWidth: '60%', margin: '0 auto', flexShrink: 0 }}
             />
           )}
-          <div className="userdata" style={{ marginRight: 16, lineHeight: '1.2' }}>
-            <Avatar size="large" icon={<UserOutlined />} className="user-avatar" />
+          <div
+            className="userdata"
+            style={{ marginRight: 16, lineHeight: '1.2' }}
+          >
+            <Avatar
+              size="large"
+              icon={<UserOutlined />}
+              className="user-avatar"
+            />
             <Space direction="vertical" size={0} className="user-info">
-              <Text className="user-name" strong>{userDetails?.fullName}</Text>
-              <Text className="user-role">{userDetails?.role === 'owner' ? 'Администратор' : 'Сотрудник'}</Text>
+              <Text className="user-name" strong>
+                {userDetails?.fullName}
+              </Text>
+              <Text className="user-role">
+                {userDetails?.role === 'owner' ? 'Администратор' : 'Сотрудник'}
+              </Text>
             </Space>
           </div>
         </Header>
@@ -376,7 +516,9 @@ const MainPage = () => {
             borderRadius: borderRadiusLG,
           }}
         >
-          <Outlet context={{ organizationID, role: userDetails?.role, userDetails }} />
+          <Outlet
+            context={{ organizationID, role: userDetails?.role, userDetails }}
+          />
         </Content>
       </Layout>
       <Modal
@@ -403,10 +545,8 @@ const MainPage = () => {
           <div>
             <Title level={5}>Клиенты без бумаги:</Title>
             <ul className="modal-list">
-              {detailedAlertData.customers.map(customer => (
-                <li key={customer.id}>
-                  {customer.brand}
-                </li>
+              {detailedAlertData.customers.map((customer) => (
+                <li key={customer.id}>{customer.brand}</li>
               ))}
             </ul>
           </div>
@@ -415,7 +555,7 @@ const MainPage = () => {
           <div>
             <Title level={5}>Стандартные рулоны без доступного количества:</Title>
             <ul className="modal-list">
-              {detailedAlertData.standardRolls.map(roll => (
+              {detailedAlertData.standardRolls.map((roll) => (
                 <li key={roll.id}>
                   {roll.product.categoryName} &rarr; {roll.product.productTitle}
                 </li>
