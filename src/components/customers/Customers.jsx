@@ -148,11 +148,15 @@ const Customers = () => {
     setButtonLoading(true);
     try {
       const [categoryId, productId] = values.product;
+      const productWeight =
+        values.productWeight === 'custom'
+          ? values.customProductWeight
+          : values.productWeight;
       const customerData = {
         ...values,
         product: { categoryId, productId },
         usesStandardPaper: isStandardPaper,
-        productWeight: values.productWeight,
+        productWeight,
       };
 
       if (!isStandardPaper) {
@@ -203,6 +207,9 @@ const Customers = () => {
     setEditingCustomer(customer);
     setIsCustomerModalVisible(true);
     setIsStandardPaper(customer.usesStandardPaper);
+    const productWeightValue = productWeightOptions.includes(customer.productWeight)
+      ? customer.productWeight
+      : 'custom';
     form.setFieldsValue({
       companyName: customer.companyName,
       brand: customer.brand,
@@ -210,7 +217,9 @@ const Customers = () => {
       product: [customer.product.categoryId, customer.product.productId],
       price: customer.price,
       availablePaper: customer.paper ? customer.paper.available : 0,
-      productWeight: customer.productWeight,
+      productWeight: productWeightValue,
+      customProductWeight:
+        productWeightValue === 'custom' ? customer.productWeight : undefined,
       paperUsageRate: customer.paperUsageRate,
     });
   };
@@ -231,21 +240,21 @@ const Customers = () => {
   const handleCreateStandardRoll = async (values) => {
     setButtonLoading(true);
     try {
-      const { product, kg, weights, usageRates } = values;
+      const { product, kg, weights } = values;
 
-      // Проверка, что хотя бы одно usageRate указано
-      const hasAtLeastOneUsageRate = weights.some(weight => usageRates[weight] !== undefined && usageRates[weight] !== null);
-
-      if (!hasAtLeastOneUsageRate) {
-        message.error('Необходимо указать хотя бы один расход бумаги для выбранных весов!');
+      if (!weights || weights.length === 0) {
+        message.error('Необходимо указать хотя бы один вес и расход бумаги!');
         return;
       }
 
-      // Форматирование usageRates в объект, где ключи — веса, а значения — usageRate
-      const formattedUsageRates = {};
-      weights.forEach((weight) => {
-        if (usageRates[weight] !== undefined && usageRates[weight] !== null) {
-          formattedUsageRates[weight] = usageRates[weight];
+      // Build usageRates object
+      const usageRates = {};
+      weights.forEach((item) => {
+        const weight =
+          item.weight === 'custom' ? item.customWeight : item.weight;
+        const usageRate = item.usageRate;
+        if (weight !== undefined && usageRate !== undefined) {
+          usageRates[weight] = usageRate;
         }
       });
 
@@ -257,7 +266,7 @@ const Customers = () => {
             productId: product[1],
           },
           kg,
-          usageRates: formattedUsageRates,
+          usageRates,
           used: 0,
           remaining: kg,
         }
@@ -281,46 +290,59 @@ const Customers = () => {
     editRollForm.setFieldsValue({
       product: [roll.product.categoryId, roll.product.productId],
       kg: roll.kg,
-      weights: Object.keys(roll.usageRates).map(Number),
-      usageRates: roll.usageRates,
+      weights: Object.entries(roll.usageRates).map(([weight, usageRate]) => {
+        const weightValue = productWeightOptions.includes(parseFloat(weight))
+          ? parseFloat(weight)
+          : 'custom';
+        return {
+          weight: weightValue,
+          customWeight:
+            weightValue === 'custom' ? parseFloat(weight) : undefined,
+          usageRate,
+        };
+      }),
     });
   };
 
   const handleUpdateStandardRoll = async (values) => {
     setButtonLoading(true);
     try {
-      const { product, kg, weights, usageRates } = values;
+      const { product, kg, weights } = values;
 
-      // Проверка, что хотя бы одно usageRate указано
-      const hasAtLeastOneUsageRate = weights.some(weight => usageRates[weight] !== undefined && usageRates[weight] !== null);
-
-      if (!hasAtLeastOneUsageRate) {
-        message.error('Необходимо указать хотя бы один расход бумаги для выбранных весов!');
+      if (!weights || weights.length === 0) {
+        message.error('Необходимо указать хотя бы один вес и расход бумаги!');
         return;
       }
 
-      // Форматирование usageRates в объект, где ключи — веса, а значения — usageRate
-      const formattedUsageRates = {};
-      weights.forEach((weight) => {
-        if (usageRates[weight] !== undefined && usageRates[weight] !== null) {
-          formattedUsageRates[weight] = usageRates[weight];
+      // Build usageRates object
+      const usageRates = {};
+      weights.forEach((item) => {
+        const weight =
+          item.weight === 'custom' ? item.customWeight : item.weight;
+        const usageRate = item.usageRate;
+        if (weight !== undefined && usageRate !== undefined) {
+          usageRates[weight] = usageRate;
         }
       });
 
-      const rollDocRef = doc(db, `organizations/${organizationID}/standard-rolls`, editingRoll.id);
+      const rollDocRef = doc(
+        db,
+        `organizations/${organizationID}/standard-rolls`,
+        editingRoll.id
+      );
       await updateDoc(rollDocRef, {
         product: {
           categoryId: product[0],
           productId: product[1],
         },
         kg,
-        usageRates: formattedUsageRates,
+        usageRates,
         remaining: kg - editingRoll.used,
       });
 
       fetchStandardRolls();
       setIsEditRollModalVisible(false);
-      setEditingRoll(null); // Исправлено на использование сеттера
+      setEditingRoll(null);
       editRollForm.resetFields();
       message.success('Стандартный рулон обновлен!');
     } catch (error) {
@@ -339,7 +361,9 @@ const Customers = () => {
       cancelText: 'Нет',
       onOk: async () => {
         try {
-          await deleteDoc(doc(db, `organizations/${organizationID}/standard-rolls`, rollId));
+          await deleteDoc(
+            doc(db, `organizations/${organizationID}/standard-rolls`, rollId)
+          );
           fetchStandardRolls();
           message.success('Стандартный рулон удален!');
         } catch (error) {
@@ -805,7 +829,28 @@ const Customers = () => {
                   {weight} гр
                 </Radio.Button>
               ))}
+              <Radio.Button key="custom" value="custom" style={{ marginRight: 10 }}>
+                Другое
+              </Radio.Button>
             </Radio.Group>
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.productWeight !== currentValues.productWeight}>
+            {({ getFieldValue }) =>
+              getFieldValue('productWeight') === 'custom' ? (
+                <Form.Item
+                  name="customProductWeight"
+                  label="Введите вес продукта (гр)"
+                  rules={[
+                    {
+                      required: true,
+                      message: 'Пожалуйста, введите вес продукта!',
+                    },
+                  ]}
+                >
+                  <InputNumber min={0} style={{ width: '100%' }} addonAfter="гр" />
+                </Form.Item>
+              ) : null
+            }
           </Form.Item>
           {role !== 'member' && (
             <Form.Item
@@ -871,42 +916,96 @@ const Customers = () => {
           >
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item
-            name="weights"
-            label="Выберите веса (гр)"
-            rules={[
-              {
-                validator: (_, value) => {
-                  if (value && value.length > 0) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error('Выберите хотя бы один вес!'));
-                },
-              },
-            ]}
-          >
-            <Checkbox.Group options={[5, 4.5, 4, 3.5]} />
-          </Form.Item>
-          <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.weights !== currentValues.weights}>
-            {() => {
-              const selectedWeights = rollForm.getFieldValue('weights') || [];
-              return selectedWeights.map((weight) => (
-                <Form.Item
-                  key={weight}
-                  name={['usageRates', weight]}
-                  label={`Кол-во бумаги для производства 1,000 шт ${weight} гр`}
-                  rules={[
-                    {
-                      required: true,
-                      message: 'Введите количество бумаги для этого веса!',
-                    },
-                  ]}
-                >
-                  <InputNumber min={0} style={{ width: '100%' }} />
+          <Form.List name="weights">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, fieldKey, ...restField }) => (
+                  <div key={key} style={{ marginBottom: 8 }}>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'weight']}
+                      fieldKey={[fieldKey, 'weight']}
+                      label="Вес продукта (гр)"
+                      rules={[{ required: true, message: 'Введите вес!' }]}
+                    >
+                      <Radio.Group>
+                        {productWeightOptions.map((weight) => (
+                          <Radio.Button
+                            key={weight}
+                            value={weight}
+                            style={{ marginRight: 10 }}
+                          >
+                            {weight} гр
+                          </Radio.Button>
+                        ))}
+                        <Radio.Button key="custom" value="custom" style={{ marginRight: 10 }}>
+                          Другое
+                        </Radio.Button>
+                      </Radio.Group>
+                    </Form.Item>
+                    <Form.Item
+                      noStyle
+                      shouldUpdate={(prevValues, currentValues) => {
+                        const prevWeights = prevValues.weights || [];
+                        const currentWeights = currentValues.weights || [];
+                        return (
+                          prevWeights[name]?.weight !== currentWeights[name]?.weight
+                        );
+                      }}
+                    >
+                      {({ getFieldValue }) => {
+                        const weightValue = getFieldValue(['weights', name, 'weight']);
+                        if (weightValue === 'custom') {
+                          return (
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'customWeight']}
+                              fieldKey={[fieldKey, 'customWeight']}
+                              label="Введите вес продукта (гр)"
+                              rules={[
+                                { required: true, message: 'Введите вес продукта!' },
+                              ]}
+                            >
+                              <InputNumber min={0} style={{ width: '100%' }} addonAfter="гр" />
+                            </Form.Item>
+                          );
+                        }
+                        return null;
+                      }}
+                    </Form.Item>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'usageRate']}
+                      fieldKey={[fieldKey, 'usageRate']}
+                      label="Расход бумаги (гр)"
+                      rules={[{ required: true, message: 'Введите расход бумаги!' }]}
+                    >
+                      <InputNumber
+                        placeholder="Расход бумаги (гр)"
+                        min={0}
+                        addonAfter="гр"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                    <Button type="danger" onClick={() => remove(name)}>
+                      Удалить
+                    </Button>
+                    <hr style={{ margin: '16px 0' }} />
+                  </div>
+                ))}
+                <Form.Item>
+                  <Button
+                    type="dashed"
+                    onClick={() => add()}
+                    block
+                    icon={<PlusCircleOutlined />}
+                  >
+                    Добавить вес
+                  </Button>
                 </Form.Item>
-              ));
-            }}
-          </Form.Item>
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
 
@@ -941,42 +1040,96 @@ const Customers = () => {
           >
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item
-            name="weights"
-            label="Выберите веса (гр)"
-            rules={[
-              {
-                validator: (_, value) => {
-                  if (value && value.length > 0) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error('Выберите хотя бы один вес!'));
-                },
-              },
-            ]}
-          >
-            <Checkbox.Group options={[5, 4.5, 4, 3.5]} />
-          </Form.Item>
-          <Form.Item shouldUpdate={(prevValues, currentValues) => prevValues.weights !== currentValues.weights}>
-            {() => {
-              const selectedWeights = editRollForm.getFieldValue('weights') || [];
-              return selectedWeights.map((weight) => (
-                <Form.Item
-                  key={weight}
-                  name={['usageRates', weight]}
-                  label={`Кол-во бумаги для производства 1,000 шт ${weight} гр`}
-                  rules={[
-                    {
-                      required: true,
-                      message: 'Введите количество бумаги для этого веса!',
-                    },
-                  ]}
-                >
-                  <InputNumber min={0} style={{ width: '100%' }} />
+          <Form.List name="weights">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, fieldKey, ...restField }) => (
+                  <div key={key} style={{ marginBottom: 8 }}>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'weight']}
+                      fieldKey={[fieldKey, 'weight']}
+                      label="Вес продукта (гр)"
+                      rules={[{ required: true, message: 'Введите вес!' }]}
+                    >
+                      <Radio.Group>
+                        {productWeightOptions.map((weight) => (
+                          <Radio.Button
+                            key={weight}
+                            value={weight}
+                            style={{ marginRight: 10 }}
+                          >
+                            {weight} гр
+                          </Radio.Button>
+                        ))}
+                        <Radio.Button key="custom" value="custom" style={{ marginRight: 10 }}>
+                          Другое
+                        </Radio.Button>
+                      </Radio.Group>
+                    </Form.Item>
+                    <Form.Item
+                      noStyle
+                      shouldUpdate={(prevValues, currentValues) => {
+                        const prevWeights = prevValues.weights || [];
+                        const currentWeights = currentValues.weights || [];
+                        return (
+                          prevWeights[name]?.weight !== currentWeights[name]?.weight
+                        );
+                      }}
+                    >
+                      {({ getFieldValue }) => {
+                        const weightValue = getFieldValue(['weights', name, 'weight']);
+                        if (weightValue === 'custom') {
+                          return (
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'customWeight']}
+                              fieldKey={[fieldKey, 'customWeight']}
+                              label="Введите вес продукта (гр)"
+                              rules={[
+                                { required: true, message: 'Введите вес продукта!' },
+                              ]}
+                            >
+                              <InputNumber min={0} style={{ width: '100%' }} addonAfter="гр" />
+                            </Form.Item>
+                          );
+                        }
+                        return null;
+                      }}
+                    </Form.Item>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'usageRate']}
+                      fieldKey={[fieldKey, 'usageRate']}
+                      label="Расход бумаги (гр)"
+                      rules={[{ required: true, message: 'Введите расход бумаги!' }]}
+                    >
+                      <InputNumber
+                        placeholder="Расход бумаги (гр)"
+                        min={0}
+                        addonAfter="гр"
+                        style={{ width: '100%' }}
+                      />
+                    </Form.Item>
+                    <Button type="danger" onClick={() => remove(name)}>
+                      Удалить
+                    </Button>
+                    <hr style={{ margin: '16px 0' }} />
+                  </div>
+                ))}
+                <Form.Item>
+                  <Button
+                    type="dashed"
+                    onClick={() => add()}
+                    block
+                    icon={<PlusCircleOutlined />}
+                  >
+                    Добавить вес
+                  </Button>
                 </Form.Item>
-              ));
-            }}
-          </Form.Item>
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
     </div>
