@@ -1,3 +1,5 @@
+// Dashboard.jsx
+
 import React, { useState, useEffect } from 'react';
 import { Typography, Space, Spin, Radio, DatePicker } from 'antd';
 import ReactApexChart from 'react-apexcharts';
@@ -28,6 +30,7 @@ const Dashboard = () => {
   // Data states
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]); // Added categories
   const [customers, setCustomers] = useState([]);
 
   // Chart data states
@@ -38,11 +41,16 @@ const Dashboard = () => {
   });
   const [areaChartData, setAreaChartData] = useState([]);
   const [customerSalesData, setCustomerSalesData] = useState({ series: [] });
+  const [labelChartData, setLabelChartData] = useState({
+    options: {},
+    series: [],
+  });
 
   // Date range states
   const [areaChartDateRange, setAreaChartDateRange] = useState(null);
   const [donutChartDateRange, setDonutChartDateRange] = useState(null);
   const [barChartDateRange, setBarChartDateRange] = useState(null);
+  const [labelChartDateRange, setLabelChartDateRange] = useState(null);
 
   // Time period state for area chart
   const [timePeriod, setTimePeriod] = useState('month'); // 'day', 'week', 'month'
@@ -60,7 +68,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (!orders.length || !products.length || !customers.length) return;
     processAreaChartData();
-    computeProductOrderStats(); // Compute product order stats when data is ready
+    computeProductOrderStats();
   }, [orders, products, customers, areaChartDateRange, timePeriod]);
 
   useEffect(() => {
@@ -72,6 +80,11 @@ const Dashboard = () => {
     if (!orders.length || !customers.length) return;
     processBarChartData();
   }, [orders, customers, barChartDateRange]);
+
+  useEffect(() => {
+    if (!products.length || !customers.length || !categories.length) return;
+    processLabelChartData();
+  }, [products, customers, categories, labelChartDateRange]);
 
   const fetchOrderData = async () => {
     if (!organizationID) return;
@@ -95,6 +108,16 @@ const Dashboard = () => {
       }));
       setProducts(fetchedProducts);
 
+      // Fetch categories
+      const categoriesSnapshot = await getDocs(
+        collection(db, `organizations/${organizationID}/product-categories`)
+      );
+      const fetchedCategories = categoriesSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setCategories(fetchedCategories);
+
       // Fetch customers
       const customersSnapshot = await getDocs(
         collection(db, `organizations/${organizationID}/customers`)
@@ -107,7 +130,7 @@ const Dashboard = () => {
 
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching orders data:', error);
+      console.error('Error fetching data:', error);
       setLoading(false);
     }
   };
@@ -117,7 +140,7 @@ const Dashboard = () => {
 
     orders.forEach((order) => {
       const categoryName = order.product.categoryName;
-      const productTitle = order.product.productTitle;
+      const productTitle = order.product.productTitle || order.product.title;
       const key = `${categoryName}→${productTitle}`;
 
       const totalPrice = order.quantity * order.price;
@@ -128,7 +151,7 @@ const Dashboard = () => {
         statsMap[key].totalQuantity += totalQuantity;
       } else {
         statsMap[key] = {
-          key, // for identification
+          key,
           categoryName,
           productTitle,
           totalPrice,
@@ -137,15 +160,12 @@ const Dashboard = () => {
       }
     });
 
-    // Convert statsMap to array
     const statsArray = Object.values(statsMap);
 
-    // Only include products with orders (totalQuantity > 0)
     const filteredStatsArray = statsArray.filter(
       (stat) => stat.totalQuantity > 0
     );
 
-    // Optionally, sort the array by totalPrice descending
     filteredStatsArray.sort((a, b) => b.totalPrice - a.totalPrice);
 
     setProductOrderStats(filteredStatsArray);
@@ -352,7 +372,9 @@ const Dashboard = () => {
     let totalQuantity = 0;
 
     filteredOrders.forEach((order) => {
-      const productLabel = `${order.product.categoryName} → ${order.product.productTitle}`;
+      const productLabel = `${order.product.categoryName} → ${
+        order.product.productTitle || order.product.title
+      }`;
       const quantity = order.quantity;
       totalQuantity += quantity;
 
@@ -475,6 +497,150 @@ const Dashboard = () => {
     });
   };
 
+  const processLabelChartData = () => {
+    // Map of productKey to counts
+    const productCustomerCounts = {};
+
+    // Initialize data structure
+    products.forEach((product) => {
+      const productKey = `${product.categoryName} → ${product.title}`;
+      productCustomerCounts[productKey] = {
+        customLabelCustomers: new Set(),
+        standardLabelCustomers: new Set(),
+      };
+    });
+
+    // Process customers
+    customers.forEach((customer) => {
+      const usesStandardPaper = customer.usesStandardPaper || false;
+      const customerId = customer.id;
+      const customerProduct = customer.product;
+
+      if (customerProduct) {
+        const product = products.find((p) => p.id === customerProduct.productId);
+        const category = categories.find(
+          (c) => c.id === customerProduct.categoryId
+        );
+
+        if (product && category) {
+          const productKey = `${category.name} → ${product.title}`;
+
+          if (productCustomerCounts[productKey]) {
+            if (usesStandardPaper) {
+              productCustomerCounts[productKey].standardLabelCustomers.add(
+                customerId
+              );
+            } else {
+              productCustomerCounts[productKey].customLabelCustomers.add(
+                customerId
+              );
+            }
+          }
+        }
+      }
+    });
+
+    // Prepare data for the chart
+    const chartCategories = [];
+    const customLabelData = [];
+    const standardLabelData = [];
+
+    Object.keys(productCustomerCounts).forEach((productKey) => {
+      const counts = productCustomerCounts[productKey];
+
+      chartCategories.push(shortenText(productKey, 15));
+      customLabelData.push(counts.customLabelCustomers.size);
+      standardLabelData.push(counts.standardLabelCustomers.size);
+    });
+
+    // Configure chart options
+    const newBarChartOptions = {
+      chart: {
+        type: 'bar',
+        height: 350,
+        stacked: false, // Set stacked to false for grouped bars
+        toolbar: {
+          show: true,
+          export: {
+            csv: {
+              headerCategory: 'Продукт',
+              headerValue: 'Количество клиентов',
+            },
+            menu: {
+              svg: 'Скачать SVG',
+              png: 'Скачать PNG',
+              csv: 'Скачать CSV',
+            },
+          },
+        },
+        locales: [
+          {
+            name: 'ru',
+            options: {
+              toolbar: {
+                exportToSVG: 'Скачать SVG',
+                exportToPNG: 'Скачать PNG',
+                exportToCSV: 'Скачать CSV',
+                menu: 'Меню',
+              },
+            },
+          },
+        ],
+        defaultLocale: 'ru',
+      },
+      plotOptions: {
+        bar: {
+          horizontal: false,
+          columnWidth: '55%',
+          endingShape: 'rounded',
+        },
+      },
+      xaxis: {
+        categories: chartCategories,
+      },
+      yaxis: {
+        title: {
+          text: 'Количество клиентов',
+          style: {
+            color: '#bfbfbf',
+            fontWeight: '300',
+          },
+        },
+      },
+      legend: {
+        position: 'top',
+      },
+      fill: {
+        opacity: 1,
+      },
+      tooltip: {
+        y: {
+          formatter: (val) => `${val} клиентов`,
+        },
+      },
+      title: {
+        text: 'Количество клиентов по продуктам и типу этикетки',
+        align: 'left',
+      },
+    };
+
+    const newBarChartSeries = [
+      {
+        name: 'С Логотипом',
+        data: customLabelData,
+      },
+      {
+        name: 'Без Логотипа',
+        data: standardLabelData,
+      },
+    ];
+
+    setLabelChartData({
+      options: newBarChartOptions,
+      series: newBarChartSeries,
+    });
+  };
+
   // Function to format large numbers for mobile
   const formatNumber = (num) => {
     if (window.innerWidth < 480) {
@@ -523,9 +689,7 @@ const Dashboard = () => {
 
   // Function to shorten the text with ellipsis
   const shortenText = (text, maxLength = 10) => {
-    return window.innerWidth < 480 && text.length > maxLength
-      ? `${text.substring(0, maxLength)}...`
-      : text;
+    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
   };
 
   // Calculate total quantity for all orders
@@ -540,9 +704,7 @@ const Dashboard = () => {
           </Text>
           <Title level={2} style={{ color: '#4d4d4d' }}>
             Добро пожаловать,{' '}
-            <span style={{ fontWeight: 'normal' }}>
-              {userDetails?.fullName}
-            </span>
+            <span style={{ fontWeight: 'normal' }}>{userDetails?.fullName}</span>
           </Title>
         </Space>
       </header>
@@ -572,8 +734,7 @@ const Dashboard = () => {
           <div className="overview-card" key={productStat.key}>
             <div>
               <div className="overview-card-title">
-                Итого для: {productStat.categoryName} →{' '}
-                {productStat.productTitle}
+                Итого для: {productStat.categoryName} → {productStat.productTitle}
               </div>
               <div className="overview-card-number small-number">
                 {productStat.totalPrice.toLocaleString('ru-RU')}
@@ -598,29 +759,29 @@ const Dashboard = () => {
           ) : (
             <>
               <div style={{ marginBottom: '16px' }}>
-                <RangePicker
-                  onChange={(dates) => {
-                    setAreaChartDateRange(dates);
-                    // Ignore timePeriod when date range is selected
-                    if (Array.isArray(dates) && dates[0] && dates[1]) {
-                      setTimePeriod(null);
-                    } else {
-                      setTimePeriod('month'); // Reset to default
-                    }
-                  }}
-                  value={areaChartDateRange}
-                  style={{ marginRight: '16px' }}
-                />
-                {!areaChartDateRange && (
-                  <Radio.Group
-                    value={timePeriod}
-                    onChange={(e) => setTimePeriod(e.target.value)}
-                  >
-                    <Radio.Button value="day">День</Radio.Button>
-                    <Radio.Button value="week">Неделя</Radio.Button>
-                    <Radio.Button value="month">Месяц</Radio.Button>
-                  </Radio.Group>
-                )}
+                <Space direction="vertical" size={8}>
+                  <RangePicker
+                    onChange={(dates) => {
+                      setAreaChartDateRange(dates);
+                      if (Array.isArray(dates) && dates[0] && dates[1]) {
+                        setTimePeriod(null);
+                      } else {
+                        setTimePeriod('month');
+                      }
+                    }}
+                    value={areaChartDateRange}
+                  />
+                  {!areaChartDateRange && (
+                    <Radio.Group
+                      value={timePeriod}
+                      onChange={(e) => setTimePeriod(e.target.value)}
+                    >
+                      <Radio.Button value="day">День</Radio.Button>
+                      <Radio.Button value="week">Неделя</Radio.Button>
+                      <Radio.Button value="month">Месяц</Radio.Button>
+                    </Radio.Group>
+                  )}
+                </Space>
               </div>
               <div id="area-chart" className="chart-container">
                 <ReactApexChart
@@ -748,9 +909,7 @@ const Dashboard = () => {
                         ],
                         defaultLocale: 'ru',
                       },
-                      labels: chartData.labels.map((label) =>
-                        shortenText(label)
-                      ),
+                      labels: chartData.labels.map((label) => shortenText(label)),
                       legend: {
                         position: 'right',
                         fontSize: '14px',
@@ -762,8 +921,7 @@ const Dashboard = () => {
                       tooltip: {
                         y: {
                           formatter: (val, { series, seriesIndex }) => {
-                            const quantity =
-                              chartData.quantities[seriesIndex];
+                            const quantity = chartData.quantities[seriesIndex];
                             return `${quantity.toLocaleString('ru-RU')} шт`;
                           },
                         },
@@ -911,6 +1069,32 @@ const Dashboard = () => {
               </>
             )}
           </div>
+        </div>
+
+        {/* New Bar Chart */}
+        <div className="card half-width">
+          {loading ? (
+            <div className="loading-spinner">
+              <Spin tip="Загрузка данных..." />
+            </div>
+          ) : (
+            <>
+              <div style={{ marginBottom: '16px' }}>
+                <RangePicker
+                  onChange={(dates) => setLabelChartDateRange(dates)}
+                  value={labelChartDateRange}
+                />
+              </div>
+              <div id="label-bar-chart" className="chart-container">
+                <ReactApexChart
+                  options={labelChartData.options}
+                  series={labelChartData.series}
+                  type="bar"
+                  height={350}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
