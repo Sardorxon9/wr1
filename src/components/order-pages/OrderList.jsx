@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Table,
   Select,
+  DatePicker,
   message,
   Typography,
   Badge,
@@ -14,6 +15,7 @@ import {
   InputNumber,
   Input,
 } from 'antd';
+
 import {
   UnorderedListOutlined,
   AppstoreOutlined,
@@ -23,6 +25,7 @@ import {
   DeleteOutlined,
   CheckOutlined,
   SearchOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import {
   collection,
@@ -39,9 +42,18 @@ import { db } from '../login-signUp/firebase';
 import { useOutletContext } from 'react-router-dom';
 import './OrderList.css';
 
+// Import Day.js and the isBetween plugin
+import dayjs from 'dayjs';
+import isBetween from 'dayjs/plugin/isBetween';
+
+// Extend Day.js with the isBetween plugin
+dayjs.extend(isBetween);
+
+
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
 const { Option } = Select;
+const { RangePicker } = DatePicker;
 
 const statusOptions = [
   {
@@ -79,26 +91,36 @@ const statusOptions = [
 ];
 
 const OrderList = () => {
-  const { organizationID, role } = useOutletContext();
-  const [dataSource, setDataSource] = useState([]);
-  const [viewMode, setViewMode] = useState('table');
-  const [selectedStatus, setSelectedStatus] = useState('all');
-  const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [deletingOrder, setDeletingOrder] = useState(null);
-  const [deleteOption, setDeleteOption] = useState(null);
-  const [partialDeliveryOrderId, setPartialDeliveryOrderId] = useState(null);
-  const [partialDeliveryQuantity, setPartialDeliveryQuantity] = useState(null);
+
+    const { organizationID, role } = useOutletContext();
+    const [dataSource, setDataSource] = useState([]);
+    const [viewMode, setViewMode] = useState('table');
+    const [selectedStatus, setSelectedStatus] = useState('all');
+    const [loading, setLoading] = useState(true);
+    const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [customers, setCustomers] = useState([]);
+    const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+    const [deletingOrder, setDeletingOrder] = useState(null);
+    const [deleteOption, setDeleteOption] = useState(null);
+    const [partialDeliveryOrderId, setPartialDeliveryOrderId] = useState(null);
+    const [partialDeliveryQuantity, setPartialDeliveryQuantity] = useState(null);
 
   // New States for Search and Sort
   const [searchQuery, setSearchQuery] = useState('');
   const [sortCategory, setSortCategory] = useState(null);
   const [sortProduct, setSortProduct] = useState(null);
 
-  useEffect(() => {
+ 
+   // New States for Date Filtering
+   const [dateFilterType, setDateFilterType] = useState('year');
+   const [dateRange, setDateRange] = useState([
+     dayjs().startOf('year'),
+     dayjs().endOf('year'),
+   ]);
+
+
+   useEffect(() => {
     if (organizationID) {
       fetchOrdersAndProducts(organizationID);
     } else {
@@ -156,6 +178,17 @@ const OrderList = () => {
     }
   };
 
+   // Function to reset all filters
+  const resetFilters = () => {
+    setSearchQuery('');
+    setSortCategory(null);
+    setSortProduct(null);
+    setDateFilterType('year');
+    setDateRange([dayjs().startOf('year'), dayjs().endOf('year')]);
+    setSelectedStatus('all');
+  };
+
+  
   const handleDeleteOrder = async (id, deleteOption) => {
     try {
       const orderDocRef = doc(db, `organizations/${organizationID}/orders`, id);
@@ -731,8 +764,18 @@ const OrderList = () => {
         (order) => order.product.productId === sortProduct
       );
     }
+    if (dateRange[0] && dateRange[1]) {
+      filteredData = filteredData.filter((order) => {
+        if (!order.date || !order.date.seconds) {
+          return false;
+        }
+        const orderDate = dayjs(order.date.seconds * 1000);
+        return orderDate.isBetween(dateRange[0], dateRange[1], null, '[]');
+      });
+    }
 
     return filteredData;
+
   };
 
   const filteredDataSource = getFilteredSortedData();
@@ -755,19 +798,20 @@ const OrderList = () => {
       </div>
 
       {/* Search and Sort Controls */}
-      <div className="search-sort-container">
-        <div className="left-controls">
+       {/* Search and Sort Controls */}
+       <div className="search-sort-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="left-controls" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center' }}>
           <Input
             placeholder="Поиск клиентов"
             prefix={<SearchOutlined />}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ width: '200px', marginRight: '10px' }}
+            style={{ width: '200px', marginRight: '10px', marginBottom: '10px' }}
             allowClear
           />
           <Select
             placeholder="Категория продукта"
-            style={{ width: '200px', marginRight: '10px' }}
+            style={{ width: '200px', marginRight: '10px', marginBottom: '10px' }}
             value={sortCategory}
             onChange={(value) => {
               setSortCategory(value);
@@ -783,7 +827,7 @@ const OrderList = () => {
           </Select>
           <Select
             placeholder="Продукт"
-            style={{ width: '200px' }}
+            style={{ width: '200px', marginRight: '10px', marginBottom: '10px' }}
             value={sortProduct}
             onChange={(value) => setSortProduct(value)}
             disabled={!sortCategory}
@@ -798,8 +842,69 @@ const OrderList = () => {
                   </Option>
                 ))}
           </Select>
+          <Select
+            value={dateFilterType}
+            onChange={(value) => {
+              setDateFilterType(value);
+              // Reset date selections when type changes
+              if (value === 'year') {
+                const start = dayjs().startOf('year');
+                const end = dayjs().endOf('year');
+                setDateRange([start, end]);
+              } else if (value === 'month') {
+                const start = dayjs().startOf('month');
+                const end = dayjs().endOf('month');
+                setDateRange([start, end]);
+              } else if (value === 'range') {
+                setDateRange([null, null]);
+              }
+            }}
+            style={{ width: '120px', marginRight: '10px', marginBottom: '10px' }}
+          >
+            <Option value="year">Год</Option>
+            <Option value="month">Месяц</Option>
+            <Option value="range">Период</Option>
+          </Select>
+          {dateFilterType === 'year' && (
+            <DatePicker
+              picker="year"
+              value={dateRange[0]}
+              onChange={(value) => {
+                setDateRange([value.startOf('year'), value.endOf('year')]);
+              }}
+              style={{ marginRight: '10px', marginBottom: '10px' }}
+            />
+          )}
+          {dateFilterType === 'month' && (
+            <DatePicker
+              picker="month"
+              value={dateRange[0]}
+              onChange={(value) => {
+                setDateRange([value.startOf('month'), value.endOf('month')]);
+              }}
+              style={{ marginRight: '2px', marginBottom: '10px' }}
+            />
+          )}
+          {dateFilterType === 'range' && (
+            <RangePicker
+              value={dateRange}
+              onChange={(values) => {
+                setDateRange(values);
+              }}
+              style={{ marginRight: '10px', marginBottom: '10px' }}
+            />
+          )}
         </div>
-        {/* Add any right-side controls here if needed */}
+        <div className="right-controls">
+          <Button
+            icon={<ReloadOutlined />}
+            type="text"
+            onClick={resetFilters}
+            style={{ marginLeft: '5px', color: "gray", marginBottom: '10px' }}
+          >
+            Сбросить фильтры
+          </Button>
+        </div>
       </div>
 
       {/* Status Tabs */}

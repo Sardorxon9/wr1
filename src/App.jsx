@@ -16,13 +16,13 @@ import Customers from './components/customers/Customers';
 import Materials from './components/materials/Materials'; // Import the new Materials component
 import ManagePaper from './components/materials/ManagePaper';
 
-
 export default function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/signup-options" element={<SignupPage />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegistrationOwner />} />
         <Route path="/register-member" element={<RegistrationMember />} />
         <Route path="/success" element={<SuccessPage />} />

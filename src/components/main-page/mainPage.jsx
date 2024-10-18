@@ -72,12 +72,12 @@ const MainPage = () => {
       if (user) {
         fetchUserData(user.uid);
       } else {
-        console.error('No user found');
-        navigate('/error');
+        console.error('User not logged in');
+        navigate('/'); // Navigate to the root path
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const fetchUserData = async (userUid) => {
     try {
@@ -187,12 +187,11 @@ const MainPage = () => {
       unsubscribeCustomers();
     };
   };
-
   const handleLogout = () => {
     auth
       .signOut()
       .then(() => {
-        navigate('/login');
+        navigate('/'); // Navigate to the root path
         notification.success({
           message: 'Успех',
           description: 'Вы успешно вышли из системы.',
@@ -368,6 +367,7 @@ const MainPage = () => {
           type="link"
           onClick={showLogoutModal}
           style={{ color: '#d9d9d9', paddingLeft: 0 }}
+          
         >
           Выйти
         </Button>
@@ -522,15 +522,16 @@ const MainPage = () => {
         </Content>
       </Layout>
       <Modal
-        title="Подтвердите выход"
-        visible={logoutModalVisible}
-        onOk={handleLogout}
-        onCancel={hideLogoutModal}
-        okText="Выйти"
-        cancelText="Отмена"
-      >
-        <Text>Вы уверены, что хотите выйти?</Text>
-      </Modal>
+  title="Подтвердите выход"
+  visible={logoutModalVisible}
+  onOk={handleLogout}
+  onCancel={hideLogoutModal}
+  okText="Выйти"
+  cancelText="Отмена"
+  okButtonProps={{ danger: true }} // Add this line
+>
+  <Text>Вы уверены, что хотите выйти?</Text>
+</Modal>
       <Modal
         title="Детали оповещений"
         visible={isDetailModalVisible}
